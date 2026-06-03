@@ -5,23 +5,64 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 // darwinSource reads OS appearance via `defaults read -g`. We deliberately
 // use os/exec rather than Cgo + NSUserDefaults: NSUserDefaults caches keys
 // in-process, which would require an explicit CFPreferencesAppSynchronize
 // before every poll to see external `defaults write` updates. Spawning the
-// `defaults` binary is ~50 ms per call but always reflects fresh state via
-// cfprefsd, which is what the G2.2 acceptance test requires. (This is the
-// asymmetry with prism/a11y, where NSWorkspace flags do not have the same
-// staleness problem.)
-type darwinSource struct{}
+// `defaults` binary always reflects fresh state via cfprefsd, which is what
+// the G2.2 acceptance test requires. (This is the asymmetry with prism/a11y,
+// where NSWorkspace flags do not have the same staleness problem.)
+//
+// Cost split (GX.11): each `defaults` call is a fork+exec — measured ~5.5 ms
+// each, so the original two-exec Read() was ~11 ms, i.e. ~1.1% CPU at a 1 s
+// poll. Dark mode (AppleInterfaceStyle) is the signal a UI must track promptly,
+// so it execs on every Read(). The accent (AppleAccentColor) changes rarely and
+// no consumer yet maps it to a colour, so it is re-read at most once per
+// accentInterval and otherwise served from cache — halving steady-state exec
+// cost without a CGO notification bridge.
+type darwinSource struct {
+	accentInterval time.Duration
+	now            func() time.Time // injectable clock for tests
+	readAccentFn   func() int       // injectable accent reader for tests
 
-func (darwinSource) Read() (Appearance, error) {
+	mu         sync.Mutex
+	accent     int
+	accentRead bool      // whether accent has ever been read
+	accentAt   time.Time // when accent was last read
+}
+
+func newDarwinSource() *darwinSource {
+	return &darwinSource{
+		accentInterval: 10 * time.Second,
+		now:            time.Now,
+		readAccentFn:   readAccent,
+	}
+}
+
+func (s *darwinSource) Read() (Appearance, error) {
 	return Appearance{
 		Dark:        readDark(),
-		AccentIndex: readAccent(),
+		AccentIndex: s.readAccentThrottled(),
 	}, nil
+}
+
+// readAccentThrottled execs `defaults read -g AppleAccentColor` at most once
+// per accentInterval, serving the cached value in between. The first Read()
+// always performs the exec so the initial Appearance is accurate.
+func (s *darwinSource) readAccentThrottled() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.now()
+	if !s.accentRead || now.Sub(s.accentAt) >= s.accentInterval {
+		s.accent = s.readAccentFn()
+		s.accentRead = true
+		s.accentAt = now
+	}
+	return s.accent
 }
 
 // readDark returns true iff `defaults read -g AppleInterfaceStyle`
@@ -57,4 +98,4 @@ func readAccent() int {
 	return n
 }
 
-func defaultSource() Source { return darwinSource{} }
+func defaultSource() Source { return newDarwinSource() }
