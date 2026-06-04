@@ -1,4 +1,4 @@
-module github.com/vibrantgio/spectrum/window
+module github.com/vibrantgio/spectrum
 
 go 1.25.1
 
@@ -6,8 +6,10 @@ require (
 	gioui.org v0.9.0
 	github.com/reactivego/rx v0.2.2
 	github.com/vibrantgio/mvu v0.0.0
+	github.com/vibrantgio/prism/a11y v0.0.0
 	github.com/vibrantgio/prism/theme v0.0.0
 	github.com/vibrantgio/prism/tokens v0.0.0
+	github.com/vibrantgio/pulse/tween v0.0.0
 )
 
 require (
@@ -21,7 +23,9 @@ require (
 )
 
 replace (
-	github.com/vibrantgio/mvu => ../../mvu
-	github.com/vibrantgio/prism/theme => ../../prism/theme
-	github.com/vibrantgio/prism/tokens => ../../prism/tokens
+	github.com/vibrantgio/mvu => ../mvu
+	github.com/vibrantgio/prism/a11y => ../prism/a11y
+	github.com/vibrantgio/prism/theme => ../prism/theme
+	github.com/vibrantgio/prism/tokens => ../prism/tokens
+	github.com/vibrantgio/pulse/tween => ../pulse/tween
 )
