@@ -6,9 +6,7 @@ require (
 	gioui.org v0.9.0
 	github.com/reactivego/rx v0.2.2
 	github.com/vibrantgio/mvu v0.0.0
-	github.com/vibrantgio/prism/a11y v0.0.0
-	github.com/vibrantgio/prism/theme v0.0.0
-	github.com/vibrantgio/prism/tokens v0.0.0
+	github.com/vibrantgio/prism v0.0.0
 	github.com/vibrantgio/pulse v0.0.0
 )
 
@@ -24,8 +22,6 @@ require (
 
 replace (
 	github.com/vibrantgio/mvu => ../mvu
-	github.com/vibrantgio/prism/a11y => ../prism/a11y
-	github.com/vibrantgio/prism/theme => ../prism/theme
-	github.com/vibrantgio/prism/tokens => ../prism/tokens
+	github.com/vibrantgio/prism => ../prism
 	github.com/vibrantgio/pulse => ../pulse
 )
