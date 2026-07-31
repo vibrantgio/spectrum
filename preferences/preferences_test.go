@@ -1,6 +1,7 @@
 package preferences_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,12 +13,11 @@ import (
 
 func collect[T any](obs rx.Observable[T]) ([]T, error) {
 	var out []T
-	sched := rx.NewScheduler()
-	err := obs.Subscribe(func(v T, _ error, done bool) {
+	err := obs.Subscribe(context.Background(), func(v T, _ error, done bool) {
 		if !done {
 			out = append(out, v)
 		}
-	}, sched).Wait()
+	}).Wait()
 	return out, err
 }
 

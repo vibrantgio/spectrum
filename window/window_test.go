@@ -1,6 +1,7 @@
 package window_test
 
 import (
+	"context"
 	"testing"
 
 	"gioui.org/layout"
@@ -16,12 +17,11 @@ import (
 // Mirrors the helper used elsewhere in the spectrum/prism test suites.
 func collect[T any](obs rx.Observable[T]) ([]T, error) {
 	var out []T
-	sched := rx.NewScheduler()
-	err := obs.Subscribe(func(v T, _ error, done bool) {
+	err := obs.Subscribe(context.Background(), func(v T, _ error, done bool) {
 		if !done {
 			out = append(out, v)
 		}
-	}, sched).Wait()
+	}).Wait()
 	return out, err
 }
 

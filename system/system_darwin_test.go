@@ -39,7 +39,7 @@ func TestDarkModeFlipEmitsWithinOneSecond(t *testing.T) {
 	obs := system.Live(pollInterval)
 
 	emissions := make(chan system.Appearance, 16)
-	sub := obs.Subscribe(func(a system.Appearance, _ error, done bool) {
+	sub := obs.Subscribe(rx.GoroutineContext(), func(a system.Appearance, _ error, done bool) {
 		if !done {
 			select {
 			case emissions <- a:
@@ -49,7 +49,7 @@ func TestDarkModeFlipEmitsWithinOneSecond(t *testing.T) {
 				panic("emissions buffer overflow — Live emitting faster than test consumes")
 			}
 		}
-	}, rx.Goroutine)
+	})
 	t.Cleanup(sub.Unsubscribe)
 
 	// Drain the initial Light emission before flipping.
