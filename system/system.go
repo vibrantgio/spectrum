@@ -1,13 +1,37 @@
-// Package system bridges OS-level appearance signals (dark mode, accent
-// colour) into the reactive theme runtime. Per-OS shims read the live state
-// behind a [Source] interface; [FromSource] turns a Source plus a poll
-// interval into an rx.Observable that emits only on change. [Live] wires
-// the OS-default source for the current platform; [LiveTheme] then
-// converts the appearance stream into [theme.Theme] emissions whose Color
-// observable matches the OS dark-mode setting.
+// Package system publishes the operating system's appearance — dark mode
+// and the accent colour — as a reactive stream, and bridges it to the theme
+// the components above read. A per-OS shim reads the live state behind a
+// [Source]; [FromSource] turns a Source plus a poll interval into an
+// rx.Observable that emits only when the value changes; [Live] wires the
+// current platform's shim, and [LiveTheme] maps that stream to
+// [theme.Theme] values whose Color matches the OS setting.
 //
-// The package never imports Gio. It speaks to the OS directly so it can
-// be reused from any spectrum consumer, with or without a window.
+// Reach for it as the theme argument of a window: LiveTheme(time.Second) is
+// what every workbench application hands to spectrum/window, and from there
+// an appearance change reaches every component with no application code.
+// Pass your own Source to [FromSource] or [FromSourceTheme] to stub the OS
+// out in a test. The package never imports Gio — it speaks to the OS
+// directly, so it is usable with or without a window.
+//
+// Only macOS has a real source. The Linux and Windows shims compile, link
+// and return the zero [Appearance] forever, so on those platforms Live
+// emits light mode once and never again: an application that looks like it
+// is ignoring the system setting is not misconfigured, it is running on a
+// stub. Live implementations are a later milestone.
+//
+// The stream is cold, and that costs more than it looks. Every subscription
+// starts its own ticker and polls the Source independently, so one
+// LiveTheme observable shared by n consumers polls n times per interval,
+// not once — and on macOS each poll forks and execs `defaults`. Multicast
+// it (rx Publish plus AutoConnect) if more than one consumer needs the
+// theme, and keep the interval at the intended one second; the OS caches
+// these values and will not report a change much sooner.
+//
+// Errors are invisible by design: a failing Read is folded into the zero
+// Appearance rather than an error emission, so a broken source is
+// indistinguishable from light mode with no accent. AccentIndex is
+// likewise carried but never used — LiveTheme maps only Dark onto a
+// palette, and mapping the accent to colours is a later milestone.
 package system
 
 import (

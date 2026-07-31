@@ -1,10 +1,28 @@
-// Package transition provides theme-token-specific colour interpolation
-// helpers built on [github.com/vibrantgio/pulse/tween].
+// Package transition interpolates a whole set of colour tokens, so a
+// light-to-dark flip can cross-fade instead of snapping.
 //
-// pulse/tween owns the generic Tween[T] machinery and the per-channel
-// LerpNRGBA primitive; this package keeps the integration with
-// [tokens.ColorTokens] (LerpColorTokens, ColorTokensTween) that bridges
-// generic tweening to the prism theme contract.
+// It is one bridge and nothing else. [github.com/vibrantgio/pulse/tween]
+// owns the generic Tween[T] machinery and the per-channel LerpNRGBA
+// primitive; this package supplies the two pieces that teach it the prism
+// theme contract — [LerpColorTokens], which lerps every field of a
+// [tokens.ColorTokens] at a parameter in [0,1], and [ColorTokensTween],
+// which packages that as a Tween you sample with At.
+//
+// Three things constrain what it can do. The unit is frames, not time:
+// ColorTokensTween(a, b, 30) is settled at At(30) whether those thirty
+// frames took half a second or five, so a duration-based fade needs the
+// caller to convert. Interpolation is a straight per-channel average of
+// 8-bit sRGB values with no perceptual or gamma correction, so a sweep
+// between two saturated tokens can pass through a duller midpoint than
+// either endpoint — acceptable for the near-greyscale background and
+// surface roles, more visible on Primary. And the tween only produces
+// values: nothing here drives it. Emitting the intermediate ColorTokens as
+// a theme, frame by frame, is the caller's job, which is why an
+// OS-driven appearance change through spectrum/system still snaps today.
+//
+// This package moves to pulse in a later release — a foundation module
+// should not depend on the effects layer — and an alias will keep this
+// import path working.
 package transition
 
 import (

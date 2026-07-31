@@ -1,15 +1,34 @@
-// Package preferences persists the user-selected theme name and
-// accessibility overrides to an OS-appropriate config directory and emits
-// the loaded values on app launch.
+// Package preferences persists the user's explicit appearance choice — a
+// theme name and the accessibility overrides — across launches, as JSON in
+// an OS-appropriate config directory.
 //
-// The config location is [os.UserConfigDir]:
+// Reach for it when the application offers its own light/dark/auto control
+// and that choice has to survive a restart. [Load] and [Save] take an
+// application name and resolve the path themselves; [LoadFrom] and [SaveTo]
+// take an explicit path, which is what a test points at a temporary
+// directory. The file is:
+//
 //   - darwin:  ~/Library/Application Support/<appName>/preferences.json
 //   - linux:   $XDG_CONFIG_HOME/<appName>/preferences.json (or ~/.config/...)
 //   - windows: %AppData%\<appName>\preferences.json
 //
-// Preferences are *config*, not *data*: this is why the package uses
-// [os.UserConfigDir] (XDG config) rather than gioui's app.DataDir
-// (XDG data). This keeps the spectrum module free of a Gio dependency.
+// That is [os.UserConfigDir], not gioui's app.DataDir, because preferences
+// are config rather than data — and it keeps this module free of a Gio
+// dependency.
+//
+// Two things to know before wiring it up. [Observe] is not a live stream:
+// it reads the file once at subscription time, emits, and completes, so a
+// later [Save] reaches nobody and a UI that must react to its own writes
+// has to publish that change itself. And nothing here turns the stored
+// Theme name into a theme value — there is no name-to-theme mapping in this
+// module yet, so an application persists a string and is entirely
+// responsible for interpreting it, including for the A11y overrides, which
+// are recorded and applied by no one.
+//
+// A missing file is deliberately not an error. Load returns [Default] and a
+// nil error, so first launch takes the same code path as every later one;
+// the cost is that an unreadable file and a fresh install are only
+// distinguishable by the error, never by the value.
 package preferences
 
 import (

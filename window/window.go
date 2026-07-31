@@ -1,17 +1,32 @@
-// Package window pairs an [mvu.Window] with the rx.Observable[theme.Theme]
-// that drives its rendering. Each [Window] holds an independent theme
-// stream — emissions on one window's theme do not reach another window's
-// stream — which is what makes per-window theme override possible.
+// Package window scopes a theme to a window. A [Window] is an [mvu.Window]
+// plus the rx.Observable[theme.Theme] that drives what it renders, which is
+// what lets two windows in one process show different themes at once —
+// light and dark, brand A and brand B, one document's theme and another's.
 //
-// This is the runtime surface for the per-window theme override called
-// out by Phase 2 of the design. Up to here the theme contract was
-// expressed at the component level: every Prism component takes an
-// rx.Observable[theme.Theme]. [Window] lifts that contract to the window
-// level so that two windows in the same process can render in different
-// themes simultaneously (light + dark, brand A + brand B, document A +
-// document B...). The "runtime change" is small because rx already gives
-// independent subscriptions independent state; the work is to define the
-// contract and prove the isolation it implies.
+// It is the application's entry point to the whole spectrum runtime, and
+// three lines wide: build an mvu window, wrap it with a theme, render.
+//
+//	w := window.New(mvu.NewWindow(app.Title("Todos")), system.LiveTheme(time.Second))
+//	err := w.Render(buildLayers(modelObs)).Wait()
+//
+// Below the window the theme contract is per component — every prism
+// component takes an rx.Observable[theme.Theme] — and [Window.Render]
+// exists to hand that one observable to the builder that constructs them,
+// so no application code threads it manually.
+//
+// Isolation is a property of the observables, not of this type. Two Windows
+// given two different observables share nothing; two Windows given the same
+// one are still independent, because an rx observable is cold and each
+// subscription gets its own state — but they will then poll the OS twice
+// per interval rather than once. Multicast the theme if that matters.
+//
+// [Window.Render] shadows the embedded [mvu.Window.Render] and takes a
+// different argument: a build function, not layers. The embedded one is
+// still reachable as w.Window.Render for a caller that has plain layers and
+// no use for the theme, at the cost of the scoping this package exists for.
+// Either way it runs until the window is destroyed and cannot be restarted
+// — a second Render call on the same window is not supported; build a new
+// window instead.
 package window
 
 import (
