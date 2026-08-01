@@ -1,6 +1,6 @@
 # spectrum
 
-The theme runtime of [VibrantGio](https://github.com/vibrantgio), a design
+The theme runtime of [Vibrant Gio](https://github.com/vibrantgio), a design
 system for native desktop applications on macOS, Windows and Linux, written in
 pure Go on [Gio](https://gioui.org). spectrum is the layer that answers one
 question — *what does this window look like right now* — and answers it as a
@@ -68,7 +68,7 @@ github.com/reactivego/rx v0.3.0 and Go 1.25.1.
 
 The whole bootstrap, from `main.go` in
 [workbench/todos](https://github.com/vibrantgio/workbench/tree/master/todos) —
-the smallest complete VibrantGio application. Two of these lines are spectrum:
+the smallest complete Vibrant Gio application. Two of these lines are spectrum:
 
 ```go
 mvuWin := mvu.NewWindow(

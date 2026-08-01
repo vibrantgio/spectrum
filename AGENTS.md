@@ -1,6 +1,6 @@
 # AGENTS.md — spectrum
 
-The theme runtime of the VibrantGio design system: `system.LiveTheme`,
+The theme runtime of the Vibrant Gio design system: `system.LiveTheme`,
 which polls the OS light/dark preference and publishes it as an observable
 theme; `window`, which pairs that observable with an mvu window;
 `preferences`, which persists the chosen theme name; and `transition`,
