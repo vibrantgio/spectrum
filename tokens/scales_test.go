@@ -77,6 +77,38 @@ func TestElevationMonotonic(t *testing.T) {
 	}
 }
 
+func TestMotionReducedZeroesEveryDuration(t *testing.T) {
+	r := tokens.Motion.Reduced()
+	durations := []struct {
+		name string
+		v    time.Duration
+	}{
+		{"DurXFast", r.DurXFast},
+		{"DurFast", r.DurFast},
+		{"DurNormal", r.DurNormal},
+		{"DurSlow", r.DurSlow},
+		{"DurXSlow", r.DurXSlow},
+	}
+	for _, d := range durations {
+		if d.v != 0 {
+			t.Errorf("Reduced().%s = %v, want 0 — reduce-motion animations must complete immediately", d.name, d.v)
+		}
+	}
+}
+
+func TestMotionReducedKeepsEverythingElse(t *testing.T) {
+	// Springs and easings carry through unchanged: no finite spring
+	// completes in one frame, and a snap-stiff spring would be unstable
+	// in pulse's explicit integrator, so the zero durations alone are
+	// the reduce-motion signal (see the Reduced doc).
+	r := tokens.Motion.Reduced()
+	want := tokens.Motion
+	want.DurXFast, want.DurFast, want.DurNormal, want.DurSlow, want.DurXSlow = 0, 0, 0, 0, 0
+	if r != want {
+		t.Errorf("Reduced() changed more than the durations:\ngot  %+v\nwant %+v", r, want)
+	}
+}
+
 func TestMotionDurationsMonotonic(t *testing.T) {
 	steps := []struct {
 		name string

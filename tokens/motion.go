@@ -129,6 +129,36 @@ type MotionScale struct {
 	SpringGentle  Spring // critically damped, soft: large soft reveals
 }
 
+// Reduced returns the reduce-motion variant of the scale: every duration
+// stop is zero, everything else — easings and spring presets — is carried
+// unchanged. It is what the theme's Motion field emits while the OS
+// "Reduce Motion" preference is on (E3.2).
+//
+// Zero durations are the whole contract. A duration-driven animation of
+// zero duration is complete the moment it starts — pulse/motion's
+// FramesAt(0, fps) is 0 frames — so a component that derives its frame
+// count from the scale reaches its target on the first frame it draws:
+// it snaps. (Watch one pulse edge: pulse/motion's Options treats a zero
+// Frames as "use the default", so a caller that snaps must skip the
+// primitive on a zero duration rather than construct one with Frames 0.)
+//
+// The spring presets are deliberately NOT retuned. No finite spring
+// completes in one frame, and a stiffness large enough to fake it
+// (ω ≈ 600 rad/s for a 16 ms settle) is far outside the stability range
+// of pulse/spring's explicit integrator at 60 Hz — it would oscillate or
+// diverge, the opposite of reduced motion. A spring-driven component
+// honours reduce-motion the same way a duration-driven one does: it reads
+// the zero durations as the signal and jumps to its target instead of
+// animating.
+func (m MotionScale) Reduced() MotionScale {
+	m.DurXFast = 0
+	m.DurFast = 0
+	m.DurNormal = 0
+	m.DurSlow = 0
+	m.DurXSlow = 0
+	return m
+}
+
 // Motion is the default scale instance.
 var Motion = MotionScale{
 	DurXFast:  50 * time.Millisecond,

@@ -177,10 +177,10 @@ Honest about what does not work yet:
   per second. Every workbench application does exactly this today with two
   layers. `rx` Publish/AutoConnect fixes it at the call site; nothing in the
   current plan changes the default.
-- **The layering is inverted.** spectrum imports `prism/theme`, `prism/tokens`,
-  `prism/a11y` and `pulse/tween`, so tier 1 reaches into tiers 2 and 3. Phase B
-  moves `theme` and `tokens` down here and `transition` up into pulse, with
-  aliases left behind.
+- **One recorded upward edge remains.** The G-B3 inversion moved `theme` and
+  `tokens` down into spectrum and `transition` up into pulse, and E3.2 moved
+  `a11y` down the same way; the deprecated `spectrum/transition` alias shim
+  still imports `pulse/transition` until F3.3 removes it.
 
 ## License
 

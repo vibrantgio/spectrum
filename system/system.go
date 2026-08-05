@@ -4,7 +4,11 @@
 // [Source]; [FromSource] turns a Source plus a poll interval into an
 // rx.Observable that emits only when the value changes; [Live] wires the
 // current platform's shim, and [LiveTheme] maps that stream to
-// [theme.Theme] values whose Color matches the OS setting.
+// [theme.Theme] values whose Color matches the OS setting. Since E3.2
+// LiveTheme also composes the OS accessibility preferences (spectrum/a11y):
+// reduce motion zeroes the emitted motion scale's durations so animated
+// components snap, and high contrast routes the resolved palette pair
+// through [HighContrastVariant].
 //
 // Reach for it as the theme argument of a window: LiveTheme(time.Second) is
 // what every workbench application hands to spectrum/window, and from there
@@ -64,6 +68,7 @@ import (
 	"time"
 
 	"github.com/reactivego/rx"
+	"github.com/vibrantgio/spectrum/a11y"
 	"github.com/vibrantgio/spectrum/theme"
 	"github.com/vibrantgio/spectrum/tokens"
 )
@@ -129,15 +134,48 @@ func Live(interval time.Duration) rx.Observable[Appearance] {
 	return FromSource(defaultSource(), interval)
 }
 
-// Option customizes the palette pair a theme stream flips between. The
-// default — no options — is tokens.DefaultLight/DefaultDark, except that
-// with no option the stream also follows the OS accent: a non-default
+// Option customizes a theme stream. The palette options ([WithSeed],
+// [WithPalette]) choose the light/dark pair the stream flips between; the
+// default — no palette option — is tokens.DefaultLight/DefaultDark, except
+// that with no option the stream also follows the OS accent: a non-default
 // [Accent] swaps in tokens.FromSeed of that accent's seed colour. Giving
 // any palette option pins the pair — the app chose its brand, so the OS
-// accent is ignored. Options choose which light/dark pair is emitted;
-// they never affect when emissions happen, so OS dark-mode tracking keeps
-// working with a branded palette.
-type Option func(*palette)
+// accent is ignored. Palette options choose which light/dark pair is
+// emitted; they never affect when emissions happen, so OS dark-mode
+// tracking keeps working with a branded palette. [WithA11ySource] chooses
+// where the accessibility preferences composed into the emissions are read
+// from.
+type Option func(*config)
+
+// config is everything the options configure: the palette machinery and
+// the accessibility-preference source the stream composes on top of it.
+type config struct {
+	pal *palette
+
+	// a11ySrc overrides where accessibility preferences come from. nil
+	// means the per-constructor default: the live OS source for
+	// [LiveTheme], a constant all-off source for [FromSourceTheme].
+	a11ySrc a11y.Source
+}
+
+// newConfig applies opts over the defaults. When several palette options
+// are given, the last one wins.
+func newConfig(opts []Option) *config {
+	c := &config{pal: &palette{light: tokens.DefaultLight, dark: tokens.DefaultDark}}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
+}
+
+// a11yStream resolves the accessibility observable for one theme stream:
+// the configured source if [WithA11ySource] was given, else fallback.
+func (c *config) a11yStream(interval time.Duration, fallback rx.Observable[a11y.A11yPrefs]) rx.Observable[a11y.A11yPrefs] {
+	if c.a11ySrc != nil {
+		return a11y.FromSource(c.a11ySrc, interval)
+	}
+	return fallback
+}
 
 // palette is the light/dark pair an Appearance flips between. When pinned
 // is false (no palette option given) an OS accent — a raw AccentSeed or a
@@ -156,25 +194,15 @@ type colorPair struct {
 	light, dark tokens.ColorTokens
 }
 
-// newPalette applies opts over the default pair. When several palette
-// options are given, the last one wins.
-func newPalette(opts []Option) *palette {
-	p := &palette{light: tokens.DefaultLight, dark: tokens.DefaultDark}
-	for _, opt := range opts {
-		opt(p)
-	}
-	return p
-}
-
 // WithSeed derives the light/dark pair from one brand colour via
 // tokens.FromSeed (derived once, up front — not per emission). The light
 // primary is the seed byte-for-byte; everything else is generated per
 // ADR-007. The pair is pinned: a stream given WithSeed ignores the OS
 // accent colour.
 func WithSeed(seed color.NRGBA) Option {
-	return func(p *palette) {
-		p.light, p.dark = tokens.FromSeed(seed)
-		p.pinned = true
+	return func(c *config) {
+		c.pal.light, c.pal.dark = tokens.FromSeed(seed)
+		c.pal.pinned = true
 	}
 }
 
@@ -183,16 +211,41 @@ func WithSeed(seed color.NRGBA) Option {
 // which of the two is live. The pair is pinned: a stream given
 // WithPalette ignores the OS accent colour.
 func WithPalette(light, dark tokens.ColorTokens) Option {
-	return func(p *palette) {
-		p.light, p.dark = light, dark
-		p.pinned = true
+	return func(c *config) {
+		c.pal.light, c.pal.dark = light, dark
+		c.pal.pinned = true
 	}
+}
+
+// WithA11ySource overrides where the stream reads accessibility
+// preferences. [LiveTheme] defaults to the OS ([a11y.Live]);
+// [FromSourceTheme] defaults to a constant all-off source so a test that
+// stubs the appearance is hermetic by default — pass a fake [a11y.Source]
+// here to exercise the reduce-motion and high-contrast composition.
+func WithA11ySource(src a11y.Source) Option {
+	return func(c *config) {
+		c.a11ySrc = src
+	}
+}
+
+// HighContrastVariant selects the high-contrast variant of a resolved
+// light/dark palette pair. The theme stream calls it while the OS
+// "Increase Contrast" preference is on, AFTER palette precedence has
+// resolved the pair — so it derives the high-contrast variant OF the
+// chosen palette, whether that came from WithSeed, WithPalette, the OS
+// accent, or the defaults.
+//
+// Until E3.3 lands the high-contrast derivation, the default is the
+// identity: the wiring is live and testable, the palette unchanged. E3.3
+// replaces this variable with the real derivation.
+var HighContrastVariant = func(light, dark tokens.ColorTokens) (hcLight, hcDark tokens.ColorTokens) {
+	return light, dark
 }
 
 // LiveTheme bridges system-appearance changes to a theme.Theme stream.
 // Each emission is a fresh theme.Theme whose Color field matches the OS
 // dark-mode setting; the remaining token categories use their package
-// defaults.
+// defaults, modulated by the OS accessibility preferences below.
 //
 // Which light/dark pair flips is decided by precedence: an explicit
 // [WithSeed] or [WithPalette] wins outright — the app chose its brand, and
@@ -205,29 +258,58 @@ func WithPalette(light, dark tokens.ColorTokens) Option {
 // desktop, or a failed read — emits tokens.DefaultLight/DefaultDark. An
 // accent change re-emits the theme with the new pair; each pair is derived
 // once per seed colour and cached.
+//
+// Since E3.2 the stream also composes the OS accessibility preferences
+// ([a11y.Live] at the same interval, or [WithA11ySource]'s source), and
+// they modulate the emissions on top of the palette precedence above:
+// while ReduceMotion is on, Motion emits tokens.Motion.Reduced() — every
+// duration zero, so duration-driven components snap to their targets —
+// regardless of which palette won; while HighContrast is on, Color emits
+// [HighContrastVariant] of the resolved pair — the high-contrast variant
+// OF the chosen palette, not a palette override. A preference toggle
+// re-emits the theme just as an appearance change does.
 func LiveTheme(interval time.Duration, opts ...Option) rx.Observable[theme.Theme] {
-	return rx.Map(Live(interval), newPalette(opts).theme)
+	c := newConfig(opts)
+	prefs := c.a11yStream(interval, a11y.Live(interval))
+	return rx.Map(rx.CombineLatest2(Live(interval), prefs), c.theme)
 }
 
 // FromSourceTheme is the test-friendly variant of LiveTheme: it lets a
 // caller plug in a fake Source while exercising the same Appearance →
-// theme.Theme bridge, including any palette options.
+// theme.Theme bridge, including any options. Unlike LiveTheme it does NOT
+// read the OS accessibility preferences by default — the a11y stream is a
+// constant all-off value, so a test's emissions cannot depend on the
+// machine it runs on; pass [WithA11ySource] to drive that half too.
 func FromSourceTheme(src Source, interval time.Duration, opts ...Option) rx.Observable[theme.Theme] {
-	return rx.Map(FromSource(src, interval), newPalette(opts).theme)
+	c := newConfig(opts)
+	prefs := c.a11yStream(interval, rx.Of(a11y.A11yPrefs{}))
+	return rx.Map(rx.CombineLatest2(FromSource(src, interval), prefs), c.theme)
 }
 
-func (p *palette) theme(a Appearance) theme.Theme {
-	light, dark := p.pair(a)
+// theme maps one (Appearance, A11yPrefs) combination to a theme.Theme
+// value: palette precedence resolves the pair, HighContrast selects its
+// high-contrast variant, dark mode picks the side, and ReduceMotion
+// swaps the motion scale for its zero-duration variant.
+func (c *config) theme(v rx.Tuple2[Appearance, a11y.A11yPrefs]) theme.Theme {
+	a, prefs := v.First, v.Second
+	light, dark := c.pal.pair(a)
+	if prefs.HighContrast {
+		light, dark = HighContrastVariant(light, dark)
+	}
 	colors := light
 	if a.Dark {
 		colors = dark
+	}
+	motion := tokens.Motion
+	if prefs.ReduceMotion {
+		motion = motion.Reduced()
 	}
 	return theme.Theme{
 		Color:      rx.Of(colors),
 		Type:       rx.Of(tokens.DefaultTypeScale),
 		Typography: rx.Of(tokens.DefaultTypography),
 		Density:    rx.Of(tokens.Comfortable),
-		Motion:     rx.Of(tokens.Motion),
+		Motion:     rx.Of(motion),
 		Spacing:    rx.Of(tokens.Spacing),
 		Radius:     rx.Of(tokens.Radius),
 		Elevation:  rx.Of(tokens.Elevation),

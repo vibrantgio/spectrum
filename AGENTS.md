@@ -7,11 +7,13 @@ theme; `window`, which pairs that observable with an mvu window;
 which interpolates theme tokens between the two.
 
 **Layer.** Tier 1 of ADR-001's stack, `mvu → spectrum → prism → pulse →
-cadence → markdown`. It imports mvu, and today also `prism/theme`,
-`prism/tokens`, `prism/a11y` and `pulse/tween` — the inversion goal G-B3
-corrects by moving the token and theme contract down out of prism into
-spectrum, and `spectrum/transition` up into `pulse/transition`. Nothing
-else in the design system imports spectrum; the workbench applications do.
+cadence → markdown`. It imports mvu; the G-B3 inversion moved the token and
+theme contract down out of prism into spectrum, E3.2 moved `a11y` down the
+same way, and `spectrum/transition` moved up into `pulse/transition` — the
+deprecated `spectrum/transition` alias shim is the one remaining upward
+edge (recorded in check-layers; F3.3 removes it). The design-system layers
+above (prism, pulse, cadence, markdown) and the workbench applications
+import spectrum.
 
 **Read the canonical guide before you write code against this module.** It is
 the organization's one agent guide — the module inventory with current tags,

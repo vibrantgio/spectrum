@@ -14,7 +14,7 @@ import (
 // in-process, which would require an explicit CFPreferencesAppSynchronize
 // before every poll to see external `defaults write` updates. Spawning the
 // `defaults` binary always reflects fresh state via cfprefsd, which is what
-// the G2.2 acceptance test requires. (This is the asymmetry with prism/a11y,
+// the G2.2 acceptance test requires. (This is the asymmetry with spectrum/a11y,
 // where NSWorkspace flags do not have the same staleness problem.)
 //
 // Cost split (GX.11): each `defaults` call is a fork+exec — measured ~5.5 ms

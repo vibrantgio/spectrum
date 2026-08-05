@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"github.com/reactivego/rx"
+	"github.com/vibrantgio/spectrum/a11y"
 	"github.com/vibrantgio/spectrum/system"
 	"github.com/vibrantgio/spectrum/tokens"
 )
 
 // fakeSource returns successive values from vals on each Read call,
 // repeating the last value once the slice is exhausted. Mirrors the
-// pattern used in prism/a11y/preferences_test.go.
+// pattern used in spectrum/a11y/preferences_test.go.
 type fakeSource struct {
 	vals []system.Appearance
 	n    int
@@ -532,5 +533,233 @@ func TestFromSourceThemeWithPaletteSurvivesLightToDark(t *testing.T) {
 		if len(colors) != 1 || colors[0] != want {
 			t.Errorf("theme[%d]: injected palette did not survive the transition", i)
 		}
+	}
+}
+
+// --- E3.2: accessibility preferences composed into the theme ---
+
+// fakeA11ySource returns successive values from vals on each Read call,
+// repeating the last value once the slice is exhausted — the a11y twin of
+// fakeSource above.
+type fakeA11ySource struct {
+	vals []a11y.A11yPrefs
+	n    int
+}
+
+func (f *fakeA11ySource) Read() (a11y.A11yPrefs, error) {
+	v := f.vals[f.n]
+	if f.n < len(f.vals)-1 {
+		f.n++
+	}
+	return v, nil
+}
+
+// TestFromSourceThemeReduceMotionSnaps is E3.2's snap test: under an OS
+// reduce-motion preference the emitted motion scale has every duration at
+// zero, so an animated component that derives its frame count from the
+// scale — pulse/motion's FramesAt(d, fps) = round(d·fps) = 0 frames for
+// every stop — is at its target on the first frame it draws.
+func TestFromSourceThemeReduceMotionSnaps(t *testing.T) {
+	appearance := &fakeSource{vals: []system.Appearance{{}}}
+	prefs := &fakeA11ySource{vals: []a11y.A11yPrefs{{ReduceMotion: true}}}
+
+	themes, err := collect(system.FromSourceTheme(appearance, time.Hour, system.WithA11ySource(prefs)).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	if len(themes) != 1 {
+		t.Fatalf("expected 1 theme, got %d", len(themes))
+	}
+	motions, err := collect(themes[0].Motion)
+	if err != nil {
+		t.Fatalf("motion observe: %v", err)
+	}
+	if len(motions) != 1 {
+		t.Fatalf("expected 1 motion emission, got %d", len(motions))
+	}
+	m := motions[0]
+	for _, d := range []struct {
+		name string
+		v    time.Duration
+	}{
+		{"DurXFast", m.DurXFast}, {"DurFast", m.DurFast}, {"DurNormal", m.DurNormal},
+		{"DurSlow", m.DurSlow}, {"DurXSlow", m.DurXSlow},
+	} {
+		if d.v != 0 {
+			t.Errorf("ReduceMotion: %s = %v, want 0 (animations must reach their target in one frame)", d.name, d.v)
+		}
+	}
+	if m != tokens.Motion.Reduced() {
+		t.Errorf("ReduceMotion: motion scale is not tokens.Motion.Reduced():\ngot %+v", m)
+	}
+}
+
+func TestFromSourceThemeReduceMotionOffKeepsMotion(t *testing.T) {
+	appearance := &fakeSource{vals: []system.Appearance{{}}}
+	prefs := &fakeA11ySource{vals: []a11y.A11yPrefs{{}}}
+
+	themes, err := collect(system.FromSourceTheme(appearance, time.Hour, system.WithA11ySource(prefs)).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	motions, err := collect(themes[0].Motion)
+	if err != nil {
+		t.Fatalf("motion observe: %v", err)
+	}
+	if len(motions) != 1 || motions[0] != tokens.Motion {
+		t.Errorf("all-off prefs: motion scale must be tokens.Motion unchanged; got %+v", motions)
+	}
+}
+
+func TestFromSourceThemeDefaultA11yIsHermetic(t *testing.T) {
+	// Without WithA11ySource, FromSourceTheme must not read the machine's
+	// real accessibility preferences: the default is a constant all-off
+	// stream, so this asserts the full default emission regardless of host.
+	appearance := &fakeSource{vals: []system.Appearance{{}}}
+
+	themes, err := collect(system.FromSourceTheme(appearance, time.Hour).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	motions, err := collect(themes[0].Motion)
+	if err != nil {
+		t.Fatalf("motion observe: %v", err)
+	}
+	if len(motions) != 1 || motions[0] != tokens.Motion {
+		t.Errorf("default a11y stream must be all-off: got motion %+v", motions)
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != tokens.DefaultLight {
+		t.Errorf("default a11y stream must be all-off: got colors %+v", colors)
+	}
+}
+
+func TestFromSourceThemeReduceMotionToggleReemits(t *testing.T) {
+	// A preference change alone — the appearance never changes — re-emits
+	// the theme, normal motion first, reduced second.
+	appearance := &fakeSource{vals: []system.Appearance{{}}}
+	prefs := &fakeA11ySource{vals: []a11y.A11yPrefs{{}, {ReduceMotion: true}}}
+
+	themes, err := collect(system.FromSourceTheme(appearance, time.Millisecond, system.WithA11ySource(prefs)).Take(2))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	if len(themes) != 2 {
+		t.Fatalf("expected 2 themes (one per preference value), got %d", len(themes))
+	}
+	for i, want := range []tokens.MotionScale{tokens.Motion, tokens.Motion.Reduced()} {
+		motions, err := collect(themes[i].Motion)
+		if err != nil {
+			t.Fatalf("theme[%d] motion observe: %v", i, err)
+		}
+		if len(motions) != 1 || motions[0] != want {
+			t.Errorf("theme[%d] motion: got %+v, want %+v", i, motions, want)
+		}
+	}
+}
+
+func TestFromSourceThemeReduceMotionComposesOnSeededPalette(t *testing.T) {
+	// A11y composes ON TOP of palette precedence: reduce motion affects the
+	// Motion emission regardless of the palette choice, and WithSeed keeps
+	// deciding the colors.
+	appearance := &fakeSource{vals: []system.Appearance{{}}}
+	prefs := &fakeA11ySource{vals: []a11y.A11yPrefs{{ReduceMotion: true}}}
+	wantLight, _ := tokens.FromSeed(customSeed)
+
+	themes, err := collect(system.FromSourceTheme(appearance, time.Hour,
+		system.WithSeed(customSeed), system.WithA11ySource(prefs)).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	motions, err := collect(themes[0].Motion)
+	if err != nil {
+		t.Fatalf("motion observe: %v", err)
+	}
+	if len(motions) != 1 || motions[0] != tokens.Motion.Reduced() {
+		t.Errorf("reduce motion must apply with a branded palette; got %+v", motions)
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != wantLight {
+		t.Errorf("WithSeed palette must survive a11y composition; got %+v", colors)
+	}
+}
+
+func TestFromSourceThemeHighContrastDefaultIsIdentity(t *testing.T) {
+	// Until E3.3 lands the derivation, HighContrastVariant defaults to the
+	// identity: high contrast on, palette unchanged — the wiring is live
+	// but selects the default palette.
+	appearance := &fakeSource{vals: []system.Appearance{{}}}
+	prefs := &fakeA11ySource{vals: []a11y.A11yPrefs{{HighContrast: true}}}
+
+	themes, err := collect(system.FromSourceTheme(appearance, time.Hour, system.WithA11ySource(prefs)).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != tokens.DefaultLight {
+		t.Errorf("identity HighContrastVariant must leave the default palette; got %+v", colors)
+	}
+}
+
+func TestFromSourceThemeHighContrastSelectsVariantOfChosenPalette(t *testing.T) {
+	// The E3.3 hook: HighContrastVariant receives the pair that palette
+	// precedence resolved — here WithSeed's pair, not the defaults — and
+	// its result is what Color emits, on the dark side under Dark.
+	appearance := &fakeSource{vals: []system.Appearance{{Dark: true}}}
+	prefs := &fakeA11ySource{vals: []a11y.A11yPrefs{{HighContrast: true}}}
+	seededLight, seededDark := tokens.FromSeed(customSeed)
+	hcLight, hcDark := tokens.FromSeed(rawAccent) // stand-in "hc variant" pair
+
+	var gotLight, gotDark tokens.ColorTokens
+	orig := system.HighContrastVariant
+	system.HighContrastVariant = func(light, dark tokens.ColorTokens) (tokens.ColorTokens, tokens.ColorTokens) {
+		gotLight, gotDark = light, dark
+		return hcLight, hcDark
+	}
+	defer func() { system.HighContrastVariant = orig }()
+
+	themes, err := collect(system.FromSourceTheme(appearance, time.Hour,
+		system.WithSeed(customSeed), system.WithA11ySource(prefs)).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	if gotLight != seededLight || gotDark != seededDark {
+		t.Errorf("hook must receive the resolved (seeded) pair, not the defaults")
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != hcDark {
+		t.Errorf("dark + high contrast must emit the hook's dark variant; got %+v", colors)
+	}
+}
+
+func TestFromSourceThemeHighContrastOffSkipsHook(t *testing.T) {
+	appearance := &fakeSource{vals: []system.Appearance{{}}}
+	prefs := &fakeA11ySource{vals: []a11y.A11yPrefs{{}}}
+
+	called := false
+	orig := system.HighContrastVariant
+	system.HighContrastVariant = func(light, dark tokens.ColorTokens) (tokens.ColorTokens, tokens.ColorTokens) {
+		called = true
+		return light, dark
+	}
+	defer func() { system.HighContrastVariant = orig }()
+
+	if _, err := collect(system.FromSourceTheme(appearance, time.Hour, system.WithA11ySource(prefs)).Take(1)); err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	if called {
+		t.Error("HighContrastVariant must not run while the preference is off")
 	}
 }

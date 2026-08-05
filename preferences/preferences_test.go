@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/reactivego/rx"
-	"github.com/vibrantgio/prism/a11y"
+	"github.com/vibrantgio/spectrum/a11y"
 	"github.com/vibrantgio/spectrum/preferences"
 )
 
