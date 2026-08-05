@@ -2,6 +2,7 @@ package system_test
 
 import (
 	"context"
+	"image/color"
 	"testing"
 	"time"
 
@@ -160,6 +161,91 @@ func TestFromSourceThemeReemitsOnChange(t *testing.T) {
 		}
 		if len(colors) != 1 || colors[0] != want {
 			t.Errorf("theme[%d] colors: got %+v, want %+v", i, colors, want)
+		}
+	}
+}
+
+// customSeed is a brand colour distinct from tokens.DefaultSeed, so any
+// leak of the default palette into an injected stream is detectable.
+var customSeed = color.NRGBA{R: 0x00, G: 0x6E, B: 0x2E, A: 0xff}
+
+func TestFromSourceThemeWithSeedEmitsSeededLight(t *testing.T) {
+	src := &fakeSource{vals: []system.Appearance{{Dark: false}}}
+	wantLight, _ := tokens.FromSeed(customSeed)
+
+	themes, err := collect(system.FromSourceTheme(src, time.Hour, system.WithSeed(customSeed)).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	if len(themes) != 1 {
+		t.Fatalf("expected 1 theme, got %d", len(themes))
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != wantLight {
+		t.Fatalf("seeded light palette mismatch")
+	}
+	// ADR-007: the light primary base is the seed pinned byte-exact.
+	if colors[0].Primary != customSeed {
+		t.Errorf("light Primary must pin the seed byte-exact: got %+v, want %+v", colors[0].Primary, customSeed)
+	}
+}
+
+func TestFromSourceThemeSeedSurvivesLightToDark(t *testing.T) {
+	light := system.Appearance{Dark: false}
+	dark := system.Appearance{Dark: true}
+	src := &fakeSource{vals: []system.Appearance{light, dark}}
+	wantLight, wantDark := tokens.FromSeed(customSeed)
+
+	themes, err := collect(system.FromSourceTheme(src, time.Millisecond, system.WithSeed(customSeed)).Take(2))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	if len(themes) != 2 {
+		t.Fatalf("expected 2 themes, got %d", len(themes))
+	}
+	for i, want := range []tokens.ColorTokens{wantLight, wantDark} {
+		colors, err := collect(themes[i].Color)
+		if err != nil {
+			t.Fatalf("theme[%d] color observe: %v", i, err)
+		}
+		if len(colors) != 1 || colors[0] != want {
+			t.Errorf("theme[%d]: custom seed did not survive the transition", i)
+		}
+	}
+	// The dark emission is the seed's dark re-tone, not the default dark.
+	darkColors, err := collect(themes[1].Color)
+	if err != nil {
+		t.Fatalf("dark color observe: %v", err)
+	}
+	if darkColors[0].Primary != wantDark.Primary {
+		t.Errorf("dark Primary: got %+v, want the seed's dark pin %+v", darkColors[0].Primary, wantDark.Primary)
+	}
+	if darkColors[0] == tokens.DefaultDark {
+		t.Error("dark emission fell back to DefaultDark; the custom seed was lost")
+	}
+}
+
+func TestFromSourceThemeWithPaletteSurvivesLightToDark(t *testing.T) {
+	src := &fakeSource{vals: []system.Appearance{{Dark: false}, {Dark: true}}}
+	customLight, customDark := tokens.FromSeed(customSeed)
+
+	themes, err := collect(system.FromSourceTheme(src, time.Millisecond, system.WithPalette(customLight, customDark)).Take(2))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	if len(themes) != 2 {
+		t.Fatalf("expected 2 themes, got %d", len(themes))
+	}
+	for i, want := range []tokens.ColorTokens{customLight, customDark} {
+		colors, err := collect(themes[i].Color)
+		if err != nil {
+			t.Fatalf("theme[%d] color observe: %v", i, err)
+		}
+		if len(colors) != 1 || colors[0] != want {
+			t.Errorf("theme[%d]: injected palette did not survive the transition", i)
 		}
 	}
 }

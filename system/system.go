@@ -35,6 +35,7 @@
 package system
 
 import (
+	"image/color"
 	"time"
 
 	"github.com/reactivego/rx"
@@ -86,29 +87,72 @@ func Live(interval time.Duration) rx.Observable[Appearance] {
 	return FromSource(defaultSource(), interval)
 }
 
+// Option customizes the palette pair a theme stream flips between. The
+// default — no options — is tokens.DefaultLight/DefaultDark, exactly the
+// pre-option behaviour. Options choose which light/dark pair is emitted;
+// they never affect when emissions happen, so OS dark-mode tracking keeps
+// working with a branded palette.
+type Option func(*palette)
+
+// palette is the light/dark pair an Appearance flips between.
+type palette struct {
+	light, dark tokens.ColorTokens
+}
+
+// newPalette applies opts over the default pair. When several palette
+// options are given, the last one wins.
+func newPalette(opts []Option) palette {
+	p := palette{light: tokens.DefaultLight, dark: tokens.DefaultDark}
+	for _, opt := range opts {
+		opt(&p)
+	}
+	return p
+}
+
+// WithSeed derives the light/dark pair from one brand colour via
+// tokens.FromSeed (derived once, up front — not per emission). The light
+// primary is the seed byte-for-byte; everything else is generated per
+// ADR-007. An OS accent colour is just such a seed, which is how
+// accent-driven palettes will plug in.
+func WithSeed(seed color.NRGBA) Option {
+	return func(p *palette) {
+		p.light, p.dark = tokens.FromSeed(seed)
+	}
+}
+
+// WithPalette supplies both modes explicitly, for callers that need full
+// control beyond what a seed derives. The appearance stream still decides
+// which of the two is live.
+func WithPalette(light, dark tokens.ColorTokens) Option {
+	return func(p *palette) {
+		p.light, p.dark = light, dark
+	}
+}
+
 // LiveTheme bridges system-appearance changes to a theme.Theme stream.
 // Each emission is a fresh theme.Theme whose Color field matches the OS
-// dark-mode setting (tokens.DefaultLight or tokens.DefaultDark); the
+// dark-mode setting — by default tokens.DefaultLight or tokens.DefaultDark,
+// or the injected pair when [WithSeed] or [WithPalette] is given; the
 // remaining token categories use their package defaults.
 //
 // Accent-driven palette swaps are intentionally out of scope here — the
-// AccentIndex is observed and propagated, but mapping it to concrete
-// ColorTokens belongs to a later spectrum milestone.
-func LiveTheme(interval time.Duration) rx.Observable[theme.Theme] {
-	return rx.Map(Live(interval), themeFromAppearance)
+// AccentIndex is observed and propagated, but mapping it to a WithSeed
+// palette belongs to a later spectrum milestone.
+func LiveTheme(interval time.Duration, opts ...Option) rx.Observable[theme.Theme] {
+	return rx.Map(Live(interval), newPalette(opts).theme)
 }
 
 // FromSourceTheme is the test-friendly variant of LiveTheme: it lets a
 // caller plug in a fake Source while exercising the same Appearance →
-// theme.Theme bridge.
-func FromSourceTheme(src Source, interval time.Duration) rx.Observable[theme.Theme] {
-	return rx.Map(FromSource(src, interval), themeFromAppearance)
+// theme.Theme bridge, including any palette options.
+func FromSourceTheme(src Source, interval time.Duration, opts ...Option) rx.Observable[theme.Theme] {
+	return rx.Map(FromSource(src, interval), newPalette(opts).theme)
 }
 
-func themeFromAppearance(a Appearance) theme.Theme {
-	colors := tokens.DefaultLight
+func (p palette) theme(a Appearance) theme.Theme {
+	colors := p.light
 	if a.Dark {
-		colors = tokens.DefaultDark
+		colors = p.dark
 	}
 	return theme.Theme{
 		Color:      rx.Of(colors),
