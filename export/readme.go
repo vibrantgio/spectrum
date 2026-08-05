@@ -57,12 +57,13 @@ func readmeMD(s Snapshot) string {
 		pinNames[i] = "`--color-" + pin.name + "`"
 	}
 	fmt.Fprintf(&b, "| pins & semantic layer | %s | pinned bases, their on-colours, and the ramp-resolved surface/divider |\n", strings.Join(pinNames, ", "))
-	b.WriteString("| `--font-family` | `--font-family` | the typeface every role uses |\n")
+	b.WriteString("| `--font-family` | `--font-family` | the typeface every prose role uses |\n")
+	b.WriteString("| `--font-family-code` | `--font-family-code` | the monospace typeface the code role uses |\n")
 	typeNames := make([]string, len(typeRoles))
 	for i, role := range typeRoles {
 		typeNames[i] = role.name
 	}
-	fmt.Fprintf(&b, "| `--font-<role>-*` | roles %s; each with `-size`, `-line-height`, `-weight`, `-tracking` | px sizes, CSS numeric weights |\n", strings.Join(typeNames, ", "))
+	fmt.Fprintf(&b, "| `--font-<role>-*` | roles %s; each with `-size`, `-line-height`, `-weight`, `-tracking` | px sizes, CSS numeric weights; code is the mono style outside the MD3 grid, at body-medium's metrics |\n", strings.Join(typeNames, ", "))
 	fmt.Fprintf(&b, "| `--density-<metric>` | %s, `--density-min-hit-target` | control metrics, px; `:root` is comfortable, `.compact` overrides all but the hit-target floor |\n", joinTokens("--density-", densityNames()))
 	fmt.Fprintf(&b, "| `--space-<key>` | %s | the 4-pt spacing grid, px |\n", joinTokens("--space-", spaceNames()))
 	fmt.Fprintf(&b, "| `--radius-<key>` | %s | corner radii, Tailwind naming, px |\n", joinTokens("--radius-", radiusNames()))
@@ -119,8 +120,8 @@ func readmeMD(s Snapshot) string {
 		"round-trip test in `spectrum/export` asserts it — so the file, not this text,\n" +
 		"is the contract. To rebrand, rerun `vg-tokens -seed #rrggbb`; every page here\n" +
 		"reflows because nothing in them is hard-coded.\n\n" +
-		"Fonts: the tokens name " + s.Typography.BodyLarge.Typeface + "; the pages fall back to system faces when it\n" +
-		"is not installed. An increased-contrast palette variant exists Go-side\n" +
+		"Fonts: the tokens name " + s.Typography.BodyLarge.Typeface + " (and " + s.Typography.Code.Typeface + " for code); the pages fall\n" +
+		"back to system faces when they are not installed. An increased-contrast palette variant exists Go-side\n" +
 		"(`tokens.FromSeedHighContrast`, driven by the OS contrast preference); it is\n" +
 		"not part of this export.\n")
 

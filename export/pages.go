@@ -387,23 +387,33 @@ const typePageCSS = `.type-role {
 }
 `
 
-// typeHTML renders foundations/type.html: all fifteen type roles at their
-// real size, weight, line height and tracking, each styled entirely through
-// its --font-<role>-* vars and annotated with the numbers.
+// typeHTML renders foundations/type.html: the fifteen MD3 type roles plus the
+// code style at their real size, weight, line height and tracking, each styled
+// entirely through its --font-<role>-* vars and annotated with the numbers.
+// The code specimen additionally names its own family through
+// var(--font-family-code) — the one role that does not inherit the body face.
 func typeHTML(s Snapshot) string {
 	var b strings.Builder
 	for _, role := range typeRoles {
 		style := role.pick(s.Typography)
+		family := ""
+		specimen := "The five boxing wizards jump quickly"
+		if role.name == "code" {
+			family = "font-family: var(--font-family-code), monospace; "
+			specimen = "if mono[0] != prose { align() }"
+		}
 		fmt.Fprintf(&b, "<section class=\"type-role\">\n")
-		fmt.Fprintf(&b, "<p class=\"specimen\" style=\"font-size: var(--font-%[1]s-size); line-height: var(--font-%[1]s-line-height); font-weight: var(--font-%[1]s-weight); letter-spacing: var(--font-%[1]s-tracking)\">The five boxing wizards jump quickly</p>\n", role.name)
+		fmt.Fprintf(&b, "<p class=\"specimen\" style=\"%[2]sfont-size: var(--font-%[1]s-size); line-height: var(--font-%[1]s-line-height); font-weight: var(--font-%[1]s-weight); letter-spacing: var(--font-%[1]s-tracking)\">%[3]s</p>\n",
+			role.name, family, html.EscapeString(specimen))
 		fmt.Fprintf(&b, "<p class=\"annot\">%s &middot; %s / %s &middot; weight %d &middot; tracking %s</p>\n",
 			role.name, px(style.Size), px(style.LineHeight), style.Weight, px(style.Tracking))
 		b.WriteString("</section>\n")
 	}
 	intro := fmt.Sprintf("Every type role at its real size, weight, line height and tracking, styled through the "+
-		"<code>--font-&lt;role&gt;-*</code> tokens. The face is the family the tokens name &mdash; %s &mdash; via "+
-		"<code>var(--font-family)</code>; the browser must have it installed, otherwise the system fallback face renders at the same metrics.",
-		html.EscapeString(s.Typography.BodyLarge.Typeface))
+		"<code>--font-&lt;role&gt;-*</code> tokens. The face is the family the tokens name &mdash; %s, and %s for the "+
+		"code style &mdash; via <code>var(--font-family)</code> and <code>var(--font-family-code)</code>; the browser "+
+		"must have them installed, otherwise the system fallback face renders at the same metrics.",
+		html.EscapeString(s.Typography.BodyLarge.Typeface), html.EscapeString(s.Typography.Code.Typeface))
 	return page("Type — Vibrant Gio foundations", "Type", intro, typePageCSS, b.String())
 }
 

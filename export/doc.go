@@ -31,9 +31,11 @@
 // The remaining families, all emitted in :root only because they do not
 // change with the scheme:
 //
-//   - --font-family, plus --font-<role>-size, -line-height, -weight and
-//     -tracking per type role (display-large … body-small): sizes, line
-//     heights and tracking in px, weights as CSS numeric weights.
+//   - --font-family and --font-family-code (the code style's mono family),
+//     plus --font-<role>-size, -line-height, -weight and -tracking per type
+//     role (display-large … body-small, and code — the mono style outside
+//     the MD3 grid, at body-medium's metrics): sizes, line heights and
+//     tracking in px, weights as CSS numeric weights.
 //   - --density-control-height, --density-padding-x and --density-padding-y
 //     from tokens.Density: :root carries tokens.Comfortable, the .compact
 //     block overrides with tokens.Compact. --density-min-hit-target is the
@@ -81,8 +83,8 @@
 // # The generative parameters
 //
 // theme.json records what reproduces the theme: the seed (hex plus its
-// OKLCh hue and sat), the pinned role hexes per mode, the heading and body
-// faces, the base radius, the shared CIELAB L* scales measured back from
+// OKLCh hue and sat), the pinned role hexes per mode, the heading, body and
+// mono faces, the base radius, the shared CIELAB L* scales measured back from
 // the emitted neutral ramps, the density model (the active setting by name,
 // both settings' metrics and the invariant hit-target floor), the elevation
 // model (surface step and shadow dp per level) and the motion set

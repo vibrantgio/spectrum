@@ -157,6 +157,9 @@ func TestRoundTripScales(t *testing.T) {
 	if got, err := strconv.Unquote(root["--font-family"]); err != nil || got != snap.Typography.BodyLarge.Typeface {
 		t.Errorf("--font-family = %q (%v), want quoted %q", root["--font-family"], err, snap.Typography.BodyLarge.Typeface)
 	}
+	if got, err := strconv.Unquote(root["--font-family-code"]); err != nil || got != snap.Typography.Code.Typeface {
+		t.Errorf("--font-family-code = %q (%v), want quoted %q", root["--font-family-code"], err, snap.Typography.Code.Typeface)
+	}
 	for _, role := range typeRoles {
 		style := role.pick(snap.Typography)
 		base := "--font-" + role.name
@@ -397,8 +400,8 @@ func TestThemeJSONReproduces(t *testing.T) {
 		}
 	}
 
-	if p.Fonts.Heading != "Roboto" || p.Fonts.Body != "Roboto" {
-		t.Errorf("fonts = %+v, want Roboto/Roboto", p.Fonts)
+	if p.Fonts.Heading != "Roboto" || p.Fonts.Body != "Roboto" || p.Fonts.Mono != "Roboto Mono" {
+		t.Errorf("fonts = %+v, want Roboto/Roboto/Roboto Mono", p.Fonts)
 	}
 	if p.Radius != float64(snap.Radius.Base) {
 		t.Errorf("radius = %v, want the base radius %v", p.Radius, snap.Radius.Base)

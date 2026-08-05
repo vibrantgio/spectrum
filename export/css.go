@@ -64,7 +64,9 @@ var pinRoles = []struct {
 	{"on-error", func(t tokens.ColorTokens) stdcolor.NRGBA { return t.OnError }},
 }
 
-// typeRoles orders the fifteen MD3 type roles under their CSS names.
+// typeRoles orders the fifteen MD3 type roles under their CSS names, plus
+// code — the sixteenth style outside the MD3 grid, the mono face at
+// body-medium's metrics (G-F0) — emitted last.
 var typeRoles = []struct {
 	name string
 	pick func(tokens.Typography) tokens.TextStyle
@@ -84,6 +86,7 @@ var typeRoles = []struct {
 	{"body-large", func(t tokens.Typography) tokens.TextStyle { return t.BodyLarge }},
 	{"body-medium", func(t tokens.Typography) tokens.TextStyle { return t.BodyMedium }},
 	{"body-small", func(t tokens.Typography) tokens.TextStyle { return t.BodySmall }},
+	{"code", func(t tokens.Typography) tokens.TextStyle { return t.Code }},
 }
 
 // spaceKeys orders the spacing stops under the Go scale's own key names.
@@ -233,7 +236,10 @@ func colorVars(t tokens.ColorTokens) []cssVar {
 // surfaces (the default cue), the dp shadows (the opt-in cue for floating
 // transients, per E2.2), and the motion set.
 func scaleVars(s Snapshot) []cssVar {
-	vars := []cssVar{{"--font-family", strconv.Quote(s.Typography.BodyLarge.Typeface)}}
+	vars := []cssVar{
+		{"--font-family", strconv.Quote(s.Typography.BodyLarge.Typeface)},
+		{"--font-family-code", strconv.Quote(s.Typography.Code.Typeface)},
+	}
 	for _, role := range typeRoles {
 		style := role.pick(s.Typography)
 		vars = append(vars,

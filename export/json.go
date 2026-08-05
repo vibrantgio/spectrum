@@ -27,8 +27,8 @@ type Parameters struct {
 	// Pins are the pinned role bases per mode.
 	Pins ModePins `json:"pins"`
 
-	// Fonts names the heading and body faces. Both are Roboto until a
-	// heading face exists.
+	// Fonts names the heading, body and mono faces. Heading and body are
+	// Roboto until a heading face exists; mono is the code style's face.
 	Fonts Fonts `json:"fonts"`
 
 	// Radius is the base radius in dp — tokens.RadiusScale.Base, the sheet's
@@ -159,10 +159,12 @@ type Pins struct {
 	Error     string `json:"error"`
 }
 
-// Fonts names the typefaces.
+// Fonts names the typefaces. Mono is the code style's face — the sheet's
+// --font-family-code.
 type Fonts struct {
 	Heading string `json:"heading"`
 	Body    string `json:"body"`
+	Mono    string `json:"mono"`
 }
 
 // ModeScale carries the L* scale for both modes.
@@ -234,7 +236,7 @@ func parameters(s Snapshot) Parameters {
 		Hue:    math.Round(hue*100) / 100,
 		Sat:    math.Round(chroma*10000) / 10000,
 		Pins:   ModePins{Light: pinsOf(s.Light), Dark: pinsOf(s.Dark)},
-		Fonts:  Fonts{Heading: s.Typography.HeadlineLarge.Typeface, Body: s.Typography.BodyLarge.Typeface},
+		Fonts:  Fonts{Heading: s.Typography.HeadlineLarge.Typeface, Body: s.Typography.BodyLarge.Typeface, Mono: s.Typography.Code.Typeface},
 		Radius: float64(s.Radius.Base),
 		Scale: ModeScale{
 			Light: measuredScale(s.Light.Ramps.Neutral),

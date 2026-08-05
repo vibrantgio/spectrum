@@ -6,6 +6,7 @@ import (
 	"gioui.org/font"
 	"gioui.org/text"
 	"github.com/vibrantgio/font/roboto"
+	"github.com/vibrantgio/font/robotomono"
 )
 
 // TypeScale holds font-size stops for each Material Design 3 type role,
@@ -81,9 +82,17 @@ type Typography struct {
 	BodyMedium TextStyle
 	BodySmall  TextStyle
 
+	// Code is the monospace style code renders in — markdown code blocks and
+	// inline code spans. It is not one of the fifteen MD3 roles: MD3's 5×3
+	// grid has no code role, so Code sits outside the grid as a sixteenth
+	// style, carrying a body role's metrics on the mono face.
+	Code TextStyle
+
 	// Faces is the font collection Shaper builds from. Every Typeface a role
 	// names must appear in it, or text in that role falls back to whatever
-	// face the shaper picks instead.
+	// face the shaper picks instead. Resolution is by Typeface name, so the
+	// order of entries only matters as fallback for text that names no
+	// typeface at all — the first faces are the default family.
 	Faces []font.FontFace
 
 	// shaper is the cache behind Shaper. Guarded by shaperMu.
@@ -114,7 +123,10 @@ func (t *Typography) Shaper() *text.Shaper {
 // DefaultTypography is the canonical MD3 typography: Roboto throughout, the
 // same sizes as DefaultTypeScale, and the official MD3 line heights and
 // tracking. Display, Headline, Title Large and Body roles are regular weight;
-// Title Medium/Small and the Label roles are medium.
+// Title Medium/Small and the Label roles are medium. Code is BodyMedium's
+// metrics on Roboto Mono, Roboto's companion mono face (G-F0); Faces carries
+// the twelve Roboto faces first — the default family for text that names no
+// typeface — then the four Roboto Mono faces Code resolves against.
 var DefaultTypography = Typography{
 	DisplayLarge:  TextStyle{Typeface: "Roboto", Weight: WeightRegular, Size: 57, LineHeight: 64, Tracking: -0.25},
 	DisplayMedium: TextStyle{Typeface: "Roboto", Weight: WeightRegular, Size: 45, LineHeight: 52, Tracking: 0},
@@ -136,7 +148,9 @@ var DefaultTypography = Typography{
 	BodyMedium: TextStyle{Typeface: "Roboto", Weight: WeightRegular, Size: 14, LineHeight: 20, Tracking: 0.25},
 	BodySmall:  TextStyle{Typeface: "Roboto", Weight: WeightRegular, Size: 12, LineHeight: 16, Tracking: 0.4},
 
-	Faces: roboto.FontFaces(),
+	Code: TextStyle{Typeface: "Roboto Mono", Weight: WeightRegular, Size: 14, LineHeight: 20, Tracking: 0.25},
+
+	Faces: append(roboto.FontFaces(), robotomono.FontFaces()...),
 }
 
 // DefaultTypeScale is the canonical MD3 type scale.
