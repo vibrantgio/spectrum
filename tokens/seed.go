@@ -6,11 +6,16 @@
 //
 //   - The shared lightness scale is ADR-007's: CIELAB L* per step, measured
 //     by the D0.1 spike from the Claude Design reference project's own
-//     ramps. Light 100–900 = 97, 92, 85, 74, 63, 51, 39, 28, 18. The dark
-//     scale is the paired scale measured from the same source's dark column
-//     (ADR-007's evidence table): 8, 13, 19, 30, 65, —, 82, —, 94; the 600
-//     and 800 stops the table has no surface for are interpolated to 74 and
-//     88. Both scales are swept at constant OKLCh hue and chroma via
+//     ramps. Light 100–900 = 97, 92, 85, 74, 63, 51, 39, 28, 6 — the
+//     measured 900 was L* 18, but D2.4's APCA gate deepened it: APCA's soft
+//     black clamp caps even pure black near Lc 92 over the L* 92 step-200
+//     ground, so Lc ≥ 90 needs the 900 stop at L* 6 (min Lc 90.7 across the
+//     five default ramps; L* 18 measured Lc 85–87). The dark scale is the
+//     paired scale measured from the same source's dark column (ADR-007's
+//     evidence table): 8, 13, 19, 30, 65, —, 82, —, 94; the 600 and 800
+//     stops the table has no surface for are interpolated to 74 and 88 (the
+//     dark 900 already clears the gate at Lc 93–96, so it is untouched).
+//     Both scales are swept at constant OKLCh hue and chroma via
 //     color.Tone, which gamut-maps by chroma reduction (ADR-002).
 //
 //   - Accent hues and chromas follow MD3's material-color-utilities
@@ -31,14 +36,20 @@
 //     would lighten it); only its alpha is forced opaque. The other light
 //     bases are their role's hue and chroma at tone 40, the depth MD3 pins
 //     accent bases at and the depth the default seed itself sits at
-//     (L* 40.08). Dark bases are the same hue and chroma re-toned to L* 65
-//     — the dark scale's step-500 depth — which reproduces ADR-007's
-//     recorded dark fill #a690ea for the default seed byte-for-byte.
+//     (L* 40.08). Dark bases are the same hue and chroma re-toned to L* 82
+//     — the dark scale's step-700 depth, right beside MD3's dark
+//     accent-base tone 80, making the dark pin byte-identical to its ramp's
+//     step 700. The D0.1 spike sat them at L* 65, the step-500 depth
+//     reproducing ADR-007's recorded dark fill #a690ea, but D2.4's APCA
+//     gate showed an L* 65 mid-tone is a ground no text can reach Lc 60
+//     over (black tops out near Lc 52, white near 57), so the pins moved up
+//     two rungs — the default seed's dark primary is now #d0c4ff — and the
+//     solid state walk still lands on exact rungs (hover 800, pressed 900).
 //
-//   - On-colours. Light bases sit at tone 40, so their on-colour is White;
-//     dark bases sit at L* 65, so their on-colour is their own dark ramp's
-//     step 100. Both meet ADR-007's Lc ≥ 60 intent with room to spare
-//     (WCAG ≈ 6.4:1 either way); D2.4 adds the APCA gate that enforces it.
+//   - On-colours. Light bases sit at tone 40, so their on-colour is White
+//     (Lc ≥ 85, WCAG ≈ 6.4:1); dark bases sit at L* 82, so their on-colour
+//     is their own dark ramp's step 100 (Lc ≥ 73, WCAG ≈ 11:1). D2.4's
+//     APCA gate enforces ADR-007's Lc ≥ 60 on both.
 package tokens
 
 import (
@@ -51,7 +62,7 @@ import (
 // CIELAB L* for steps 100–900, light and paired dark, per ADR-007. Index i
 // holds step (i+1)*100, matching Ramp.
 var (
-	lightTones = [9]int{97, 92, 85, 74, 63, 51, 39, 28, 18}
+	lightTones = [9]int{97, 92, 85, 74, 63, 51, 39, 28, 6}
 	darkTones  = [9]int{8, 13, 19, 30, 65, 74, 82, 88, 94}
 )
 
@@ -64,7 +75,8 @@ const (
 	errorHue         = 28.7  // OKLCh hue of MD3's error base #B3261E
 	errorChroma      = 0.178 // OKLCh chroma of #B3261E
 	lightPinTone     = 40    // MD3's accent-base tone; the default seed's own depth
-	darkPinTone      = 65    // the dark scale's step-500 L*; yields #a690ea for #6750A4
+	darkPinTone      = 82    // the dark scale's step-700 L*; D2.4 raised it from the
+	// spike's 65 — no on-colour reaches Lc 60 over an L* 65 mid-tone
 )
 
 // rampOf sweeps one role's hue and chroma across a lightness scale.

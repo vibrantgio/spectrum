@@ -21,12 +21,14 @@
 //     (hover one rung, pressed and selected two), the target L* is read off
 //     the ladder by linear interpolation, and the colour is realized at the
 //     pin's own OKLCh hue and chroma by the tonal solver. The dark pin sits
-//     at the dark scale's step-500 depth by construction, so its hover
-//     lands at step-600 depth and its pressed at step-700 depth — exactly
-//     the walk a tinted surface performs — while the light seed pin
-//     (≈ step-700 depth for the default seed) darkens toward the 800/900
-//     depths. In both modes the walk heads toward the 900 end of the
-//     paired scale: darker in light mode, lighter in dark mode.
+//     at the dark scale's step-700 depth by construction (D2.4 raised it
+//     from the spike's step-500 depth so its on-colour clears the APCA
+//     gate), so its hover lands at step-800 depth and its pressed clamps at
+//     the step-900 depth — exactly the walk a tinted surface performs —
+//     while the light seed pin (≈ step-700 depth for the default seed)
+//     darkens toward the 800/900 depths. In both modes the walk heads
+//     toward the 900 end of the paired scale: darker in light mode, lighter
+//     in dark mode.
 //
 // Clamping: a walk past the ramp end clamps to the 900 stop — ground 800
 // pressed resolves to step 900, ground 900 hover stays at 900, and a solid

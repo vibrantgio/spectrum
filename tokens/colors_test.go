@@ -216,8 +216,14 @@ func TestFromSeedPinsSeedExactly(t *testing.T) {
 // as an explicit, reviewed palette change. Landmarks that tie the recording
 // to ADR-007's evidence table: the dark Neutral steps reproduce the ADR's
 // measured dark column (#18171c, #222126, #2e2e33, #47464c, #9e9da4,
-// #cccbd2, #eeedf4) and the dark Primary pin is the ADR's recorded dark
-// fill #a690ea.
+// #cccbd2, #eeedf4) and the ADR's recorded dark fill #a690ea survives as
+// the dark Primary ramp's step 500. Two D2.4 retunings moved recorded
+// values off the spike's measurements: the light 900 stops deepened from
+// L* 18 to L* 6 (with Text following the neutral 900) to clear the
+// Lc ≥ 90 gate over the step-200 grounds, and the dark pins rose from
+// L* 65 (step-500 depth) to L* 82 (step-700 depth, byte-identical to the
+// ramp's 700 stop) because no on-colour reaches Lc 60 over an L* 65
+// mid-tone.
 func defaultGolden() (light, dark tokens.ColorTokens) {
 	hex := func(r, g, b uint8) color.NRGBA { return color.NRGBA{r, g, b, 0xff} }
 	light = tokens.ColorTokens{
@@ -231,7 +237,7 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 				hex(0x7a, 0x79, 0x7f),
 				hex(0x5c, 0x5b, 0x61),
 				hex(0x42, 0x41, 0x47),
-				hex(0x2c, 0x2b, 0x31),
+				hex(0x14, 0x13, 0x18),
 			},
 			Primary: tokens.Ramp{
 				hex(0xf7, 0xf5, 0xff),
@@ -242,7 +248,7 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 				hex(0x82, 0x6c, 0xc2),
 				hex(0x64, 0x4d, 0xa1),
 				hex(0x4b, 0x32, 0x83),
-				hex(0x36, 0x19, 0x69),
+				hex(0x1d, 0x00, 0x44),
 			},
 			Secondary: tokens.Ramp{
 				hex(0xf7, 0xf5, 0xff),
@@ -253,7 +259,7 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 				hex(0x7b, 0x76, 0x93),
 				hex(0x5e, 0x58, 0x74),
 				hex(0x44, 0x3f, 0x59),
-				hex(0x2e, 0x29, 0x41),
+				hex(0x15, 0x10, 0x26),
 			},
 			Tertiary: tokens.Ramp{
 				hex(0xff, 0xf4, 0xf8),
@@ -264,7 +270,7 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 				hex(0x9b, 0x6c, 0x7f),
 				hex(0x7b, 0x4f, 0x61),
 				hex(0x5f, 0x35, 0x47),
-				hex(0x47, 0x1f, 0x31),
+				hex(0x2a, 0x05, 0x17),
 			},
 			Error: tokens.Ramp{
 				hex(0xff, 0xf4, 0xf2),
@@ -275,7 +281,7 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 				hex(0xd5, 0x49, 0x3c),
 				hex(0xb1, 0x24, 0x1c),
 				hex(0x8b, 0x00, 0x02),
-				hex(0x61, 0x00, 0x01),
+				hex(0x32, 0x00, 0x00),
 			},
 		},
 		Primary:     hex(0x67, 0x50, 0xa4), // the seed, byte-exact
@@ -287,7 +293,7 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 		Error:       hex(0xb4, 0x27, 0x1f),
 		OnError:     tokens.White,
 		Background:  hex(0xf7, 0xf6, 0xfd),
-		Text:        hex(0x2c, 0x2b, 0x31),
+		Text:        hex(0x14, 0x13, 0x18),
 	}
 	dark = tokens.ColorTokens{
 		Ramps: tokens.RampSet{
@@ -347,13 +353,13 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 				hex(0xff, 0xe9, 0xe6),
 			},
 		},
-		Primary:     hex(0xa6, 0x90, 0xea), // ADR-007's recorded dark fill
+		Primary:     hex(0xd0, 0xc4, 0xff), // L* 82, the step-700 depth (D2.4)
 		OnPrimary:   hex(0x22, 0x00, 0x4e),
-		Secondary:   hex(0xa0, 0x9a, 0xb8),
+		Secondary:   hex(0xce, 0xc8, 0xe8),
 		OnSecondary: hex(0x1a, 0x14, 0x2b),
-		Tertiary:    hex(0xc2, 0x90, 0xa3),
+		Tertiary:    hex(0xf2, 0xbe, 0xd2),
 		OnTertiary:  hex(0x2f, 0x09, 0x1c),
-		Error:       hex(0xff, 0x71, 0x61),
+		Error:       hex(0xff, 0xbc, 0xb1),
 		OnError:     hex(0x3a, 0x00, 0x00),
 		Background:  hex(0x18, 0x17, 0x1c),
 		Text:        hex(0xee, 0xed, 0xf4),

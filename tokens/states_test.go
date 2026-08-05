@@ -177,8 +177,10 @@ func TestSolidWalkMonotonicTowardNine(t *testing.T) {
 
 // TestDarkSolidWalkLandsOnPairedDepths verifies "same step, same job" for
 // the solid regime: FromSeed pins every dark base at the dark scale's
-// step-500 depth, so its hover must land at step-600 depth and its pressed
-// at step-700 depth — the exact rungs a tinted walk from 500 would visit.
+// step-700 depth (D2.4 — the spike's step-500 depth failed the APCA
+// on-colour gate), so its hover must land at step-800 depth and its
+// pressed must clamp at step-900 depth — the exact rungs a tinted walk
+// from 700 would visit.
 func TestDarkSolidWalkLandsOnPairedDepths(t *testing.T) {
 	const tol = 1.5 // L*, absorbs 8-bit quantization of pin and ramp
 	for _, r := range accentRoles {
@@ -190,8 +192,8 @@ func TestDarkSolidWalkLandsOnPairedDepths(t *testing.T) {
 			got  color.NRGBA
 			rung int
 		}{
-			{"hover", hover, 600},
-			{"pressed", pressed, 700},
+			{"hover", hover, 800},
+			{"pressed", pressed, 900},
 		} {
 			lGot, _, _ := speccolor.LabFromNRGBA(c.got)
 			lWant, _, _ := speccolor.LabFromNRGBA(ramp.Step(c.rung))
