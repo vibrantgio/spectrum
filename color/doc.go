@@ -4,9 +4,10 @@
 //
 // The tone axis is CIELAB L*, exactly as Material Design 3 defines tone:
 // Lab and RGB convert an sRGB triple to L*a*b* and back through XYZ under
-// standard illuminant D65. Hue and chroma come from OKLCh, which arrives
-// alongside this chain in a later step; the two spaces share the sRGB
-// linearisation but nothing else.
+// standard illuminant D65. Hue and chroma come from OKLCh: OKLab, OKLCh
+// and their inverses live in oklab.go, after Björn Ottosson's reference
+// formulation; the two spaces share the sRGB linearisation but nothing
+// else.
 //
 // The package name collides with image/color in an importer's import list;
 // alias one of them — spectrum code aliases the standard library one.
