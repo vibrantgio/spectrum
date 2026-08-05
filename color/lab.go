@@ -46,7 +46,9 @@ func RGB_to_XYZ_D65(R, G, B float64) (X, Y, Z float64) {
 	return X, Y, Z
 }
 
-// XYZ_to_RGB_D65 converts X,Y,Z in range [0,1] to R,G,B in range [0,1]
+// XYZ_to_RGB_D65 converts X,Y,Z in range [0,1] to R,G,B in range [0,1].
+// Out-of-gamut XYZ yields channel values outside [0,1], returned raw —
+// nothing is clamped here; only the 8-bit producers gamut map.
 func XYZ_to_RGB_D65(X, Y, Z float64) (R, G, B float64) {
 	// 1. XYZ to Linear RGB D65
 	red := (3.2404542*X - 1.5371385*Y - 0.4985314*Z)
@@ -129,24 +131,37 @@ func Lab(R, G, B uint8) (L float64, a float64, b float64) {
 // CIELAB L* in range [0,100] and a,b value in range [-100,100]
 // Any L* values outside the valid [0,100] range are clamped.
 //
-// Out-of-gamut a,b are clamped per channel, which keeps RGB total but is
-// not gamut mapping — the clamp shifts hue and chroma. It is replaced by
-// real gamut mapping in a later step; until then treat out-of-gamut
-// results as approximate.
+// Out-of-gamut a,b are gamut mapped (this part is not the lift — the
+// original clamped R, G and B independently, which shifts hue and chroma):
+// the colour's OKLCh chroma is reduced toward 0 at constant L* and
+// constant OKLCh hue until it fits sRGB, per gamut.go. In-gamut input is
+// returned untouched.
 func RGB(L, a, b float64) (R uint8, G uint8, B uint8) {
-	clamp := func(val, min, max float64) float64 {
-		return math.Max(min, math.Min(val, max))
+	if L >= 100 {
+		return 255, 255, 255
 	}
-	scale := func(val float64) uint8 {
-		return uint8(math.Round(255.0 * clamp(val, 0, 1)))
+	if L <= 0 {
+		return 0, 0, 0
 	}
-	L = clamp(L, 0, 100)
 	X, Y, Z := Lab_to_XYZ_D65(L, a, b)
 	red, green, blue := XYZ_to_RGB_D65(X, Y, Z)
-	R = scale(red)
-	G = scale(green)
-	B = scale(blue)
-	return R, G, B
+	scale := func(val float64) uint8 {
+		return uint8(math.Round(255.0 * math.Max(0, math.Min(val, 1))))
+	}
+	if inSRGBGamut(red, green, blue) {
+		// In gamut: the min/max in scale only snaps ≤ gamutEps of
+		// numeric residue onto the cube boundary, not out-of-gamut
+		// colour.
+		return scale(red), scale(green), scale(blue)
+	}
+	// Out of gamut: express the requested colour as tone (its L*) plus
+	// the OKLCh chroma and hue of its raw linear triple, and map.
+	// LinearFromSRGB inverts the companding exactly even outside [0,1]:
+	// both branches of the piecewise pair are mutual inverses over all
+	// reals.
+	_, C, h := OKLChFromOKLab(OKLabFromLinearRGB(
+		LinearFromSRGB(red), LinearFromSRGB(green), LinearFromSRGB(blue)))
+	return quantizeLinear(linearRGBFromToneChromaHue(L, C, h))
 }
 
 // LabFromNRGBA returns the CIELAB L*, a, b for an image/color NRGBA value.
@@ -157,7 +172,8 @@ func LabFromNRGBA(c stdcolor.NRGBA) (L, a, b float64) {
 }
 
 // NRGBAFromLab returns the fully opaque image/color NRGBA value for the
-// CIELAB L*, a, b, with the same clamping as RGB. Not part of the lift.
+// CIELAB L*, a, b, with the same gamut mapping as RGB. Not part of the
+// lift.
 func NRGBAFromLab(L, a, b float64) stdcolor.NRGBA {
 	R, G, B := RGB(L, a, b)
 	return stdcolor.NRGBA{R: R, G: G, B: B, A: 0xff}

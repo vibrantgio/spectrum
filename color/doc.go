@@ -9,6 +9,13 @@
 // formulation; the two spaces share the sRGB linearisation but nothing
 // else.
 //
+// Out-of-gamut requests are gamut mapped, never channel-clamped: every
+// conversion that produces 8-bit sRGB reduces OKLCh chroma at constant
+// lightness and constant hue until the colour fits (gamut.go), with
+// RGBFromToneChromaHue as the palette-facing entry point — tone in,
+// in-gamut colour out. The float-level converters stay raw: out-of-gamut
+// input yields out-of-range channels, documented per function.
+//
 // The package name collides with image/color in an importer's import list;
 // alias one of them — spectrum code aliases the standard library one.
 package color

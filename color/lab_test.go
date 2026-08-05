@@ -93,8 +93,9 @@ func TestRGBIsTotal(t *testing.T) {
 	if r, g, b := color.RGB(-7, 0, 0); [3]uint8{r, g, b} != [3]uint8{0, 0, 0} {
 		t.Errorf("RGB(-7,0,0) = %v,%v,%v, want black (L* clamped to 0)", r, g, b)
 	}
-	// Far out of gamut: a vivid green at near-black tone. The per-channel
-	// clamp keeps this total; the values it picks are approximate by design.
+	// Far out of gamut: a vivid green at near-black tone. Gamut mapping
+	// keeps this total; it lands on the most chromatic sRGB green that
+	// still has L* = 1 (mapping semantics are tested in gamut_test.go).
 	r, g, b := color.RGB(1, -128, 128)
 	_ = [3]uint8{r, g, b}
 }

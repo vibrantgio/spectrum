@@ -144,7 +144,7 @@ func TestOKLChNeutralHue(t *testing.T) {
 
 // TestRGBFromOKLabIsTotal checks that the inverse accepts any OKLab input:
 // out-of-range L is clamped to [0,1] and out-of-gamut a,b still produce a
-// triple (per-channel clamp, approximate by design until gamut mapping).
+// triple (gamut mapped at constant L and hue; see gamut_test.go).
 func TestRGBFromOKLabIsTotal(t *testing.T) {
 	if r, g, b := color.RGBFromOKLab(1.2, 0, 0); [3]uint8{r, g, b} != [3]uint8{255, 255, 255} {
 		t.Errorf("RGBFromOKLab(1.2,0,0) = %v,%v,%v, want white (L clamped to 1)", r, g, b)

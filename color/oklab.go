@@ -87,23 +87,17 @@ func OKLab(R, G, B uint8) (L, a, b float64) {
 // RGBFromOKLab returns the sRGB triple in range [0,255] for the OKLab L,a,b.
 // L outside [0,1] is clamped.
 //
-// Out-of-gamut a,b are clamped per channel, which keeps the function total
-// but is not gamut mapping — the clamp shifts hue and chroma, the same
-// caveat as RGB. Real gamut mapping replaces this in a later step; until
-// then treat out-of-gamut results as approximate.
+// Out-of-gamut a,b are gamut mapped: chroma is reduced toward 0 at
+// constant OKLab L and constant hue until the colour fits sRGB — here the
+// caller's lightness axis is OKLab L, so that is what is held, where RGB
+// holds CIELAB L*. In-gamut input is returned untouched.
 func RGBFromOKLab(L, a, b float64) (R, G, B uint8) {
-	clamp := func(val, min, max float64) float64 {
-		return math.Max(min, math.Min(val, max))
-	}
-	scale := func(val float64) uint8 {
-		return uint8(math.Round(255.0 * clamp(val, 0, 1)))
-	}
-	L = clamp(L, 0, 1)
+	L = math.Max(0, math.Min(L, 1))
 	red, green, blue := LinearRGBFromOKLab(L, a, b)
-	R = scale(SRGBFromLinear(red))
-	G = scale(SRGBFromLinear(green))
-	B = scale(SRGBFromLinear(blue))
-	return R, G, B
+	if !inSRGBGamut(red, green, blue) {
+		red, green, blue = mapOKLabChroma(L, a, b)
+	}
+	return quantizeLinear(red, green, blue)
 }
 
 // OKLChFromOKLab converts OKLab to its polar form OKLCh: C = √(a²+b²) and
@@ -139,7 +133,7 @@ func OKLCh(R, G, B uint8) (L, C, h float64) {
 }
 
 // RGBFromOKLCh returns the sRGB triple in range [0,255] for the OKLCh
-// L,C,h, with the same clamping caveats as RGBFromOKLab.
+// L,C,h, with the same gamut mapping as RGBFromOKLab.
 func RGBFromOKLCh(L, C, h float64) (R, G, B uint8) {
 	return RGBFromOKLab(OKLabFromOKLCh(L, C, h))
 }
@@ -152,7 +146,7 @@ func OKLabFromNRGBA(c stdcolor.NRGBA) (L, a, b float64) {
 }
 
 // NRGBAFromOKLab returns the fully opaque image/color NRGBA value for the
-// OKLab L,a,b, with the same clamping as RGBFromOKLab.
+// OKLab L,a,b, with the same gamut mapping as RGBFromOKLab.
 func NRGBAFromOKLab(L, a, b float64) stdcolor.NRGBA {
 	R, G, B := RGBFromOKLab(L, a, b)
 	return stdcolor.NRGBA{R: R, G: G, B: B, A: 0xff}
@@ -165,7 +159,7 @@ func OKLChFromNRGBA(c stdcolor.NRGBA) (L, C, h float64) {
 }
 
 // NRGBAFromOKLCh returns the fully opaque image/color NRGBA value for the
-// OKLCh L,C,h, with the same clamping as RGBFromOKLCh.
+// OKLCh L,C,h, with the same gamut mapping as RGBFromOKLCh.
 func NRGBAFromOKLCh(L, C, h float64) stdcolor.NRGBA {
 	R, G, B := RGBFromOKLCh(L, C, h)
 	return stdcolor.NRGBA{R: R, G: G, B: B, A: 0xff}
