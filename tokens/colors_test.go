@@ -24,6 +24,7 @@ func tokenPairs(t tokens.ColorTokens) []contrastPair {
 		{"SurfaceVariant/OnSurfaceVariant", t.SurfaceVariant, t.OnSurfaceVariant},
 		{"Primary/OnPrimary", t.Primary, t.OnPrimary},
 		{"Secondary/OnSecondary", t.Secondary, t.OnSecondary},
+		{"Tertiary/OnTertiary", t.Tertiary, t.OnTertiary},
 		{"Error/OnError", t.Error, t.OnError},
 	}
 }
@@ -111,10 +112,9 @@ func TestAliasesResolveFromRamps(t *testing.T) {
 	}
 }
 
-// TestNeutralStepsPopulated verifies the Neutral steps the aliases resolve
-// from are present and opaque in both default schemes. The remaining steps
-// and the accent ramps are deliberately zero until D2.2 generates them.
-func TestNeutralStepsPopulated(t *testing.T) {
+// TestAllRampStepsPopulated verifies every step of every role ramp, every
+// pin and every semantic colour is an opaque colour in both default schemes.
+func TestAllRampStepsPopulated(t *testing.T) {
 	for _, s := range []struct {
 		name string
 		tok  tokens.ColorTokens
@@ -122,76 +122,302 @@ func TestNeutralStepsPopulated(t *testing.T) {
 		{"DefaultLight", tokens.DefaultLight},
 		{"DefaultDark", tokens.DefaultDark},
 	} {
-		for _, step := range []int{200, 300, 500, 700, 900} {
-			if c := s.tok.Ramps.Neutral.Step(step); c.A != 0xff {
-				t.Errorf("%s: Neutral.Step(%d) = %v, want an opaque colour", s.name, step, c)
+		for _, r := range namedRamps(s.tok) {
+			for step := 100; step <= 900; step += 100 {
+				if c := r.ramp.Step(step); c.A != 0xff {
+					t.Errorf("%s: %s.Step(%d) = %v, want an opaque colour", s.name, r.name, step, c)
+				}
+			}
+		}
+		for name, c := range map[string]color.NRGBA{
+			"Primary": s.tok.Primary, "OnPrimary": s.tok.OnPrimary,
+			"Secondary": s.tok.Secondary, "OnSecondary": s.tok.OnSecondary,
+			"Tertiary": s.tok.Tertiary, "OnTertiary": s.tok.OnTertiary,
+			"Error": s.tok.Error, "OnError": s.tok.OnError,
+			"Background": s.tok.Background, "Text": s.tok.Text,
+		} {
+			if c.A != 0xff {
+				t.Errorf("%s: %s = %v, want an opaque colour", s.name, name, c)
 			}
 		}
 	}
 }
 
-// TestPreADR007ValuesUnchanged pins every pre-ADR-007 field to its exact
-// former value, byte for byte, so the ramp restructuring cannot move a
-// colour any consumer already renders (goldens downstream depend on these).
-func TestPreADR007ValuesUnchanged(t *testing.T) {
-	hex := func(r, g, b uint8) color.NRGBA { return color.NRGBA{r, g, b, 0xff} }
+type namedRamp struct {
+	name string
+	ramp tokens.Ramp
+}
+
+func namedRamps(t tokens.ColorTokens) []namedRamp {
+	return []namedRamp{
+		{"Neutral", t.Ramps.Neutral},
+		{"Primary", t.Ramps.Primary},
+		{"Secondary", t.Ramps.Secondary},
+		{"Tertiary", t.Ramps.Tertiary},
+		{"Error", t.Ramps.Error},
+	}
+}
+
+// TestRampLightnessDirection verifies the paired scales run the documented
+// way in every ramp: in light mode step 100 is the lightest and luminance
+// strictly falls toward 900; in dark mode step 100 is the darkest ground
+// and luminance strictly rises toward 900 — same step, same job.
+func TestRampLightnessDirection(t *testing.T) {
 	for _, s := range []struct {
-		name string
-		tok  tokens.ColorTokens
-		want map[string]color.NRGBA
+		name       string
+		tok        tokens.ColorTokens
+		descending bool
 	}{
-		{"DefaultLight", tokens.DefaultLight, map[string]color.NRGBA{
-			"Background":       hex(0xff, 0xff, 0xff),
-			"OnBackground":     hex(0x0f, 0x17, 0x2a),
-			"Surface":          hex(0xf8, 0xfa, 0xfc),
-			"OnSurface":        hex(0x0f, 0x17, 0x2a),
-			"SurfaceVariant":   hex(0xf1, 0xf5, 0xf9),
-			"OnSurfaceVariant": hex(0x33, 0x41, 0x55),
-			"Primary":          hex(0x1d, 0x4e, 0xd8),
-			"OnPrimary":        hex(0xff, 0xff, 0xff),
-			"Secondary":        hex(0x47, 0x55, 0x69),
-			"OnSecondary":      hex(0xff, 0xff, 0xff),
-			"Error":            hex(0xb9, 0x1c, 0x1c),
-			"OnError":          hex(0xff, 0xff, 0xff),
-			"Outline":          hex(0xcb, 0xd5, 0xe1),
-		}},
-		{"DefaultDark", tokens.DefaultDark, map[string]color.NRGBA{
-			"Background":       hex(0x02, 0x06, 0x17),
-			"OnBackground":     hex(0xf8, 0xfa, 0xfc),
-			"Surface":          hex(0x0f, 0x17, 0x2a),
-			"OnSurface":        hex(0xf1, 0xf5, 0xf9),
-			"SurfaceVariant":   hex(0x1e, 0x29, 0x3b),
-			"OnSurfaceVariant": hex(0xcb, 0xd5, 0xe1),
-			"Primary":          hex(0x60, 0xa5, 0xfa),
-			"OnPrimary":        hex(0x0f, 0x17, 0x2a),
-			"Secondary":        hex(0x94, 0xa3, 0xb8),
-			"OnSecondary":      hex(0x0f, 0x17, 0x2a),
-			"Error":            hex(0xf8, 0x71, 0x71),
-			"OnError":          hex(0x0f, 0x17, 0x2a),
-			"Outline":          hex(0x33, 0x41, 0x55),
-		}},
+		{"DefaultLight", tokens.DefaultLight, true},
+		{"DefaultDark", tokens.DefaultDark, false},
 	} {
-		got := map[string]color.NRGBA{
-			"Background":       s.tok.Background,
-			"OnBackground":     s.tok.OnBackground,
-			"Surface":          s.tok.Surface,
-			"OnSurface":        s.tok.OnSurface,
-			"SurfaceVariant":   s.tok.SurfaceVariant,
-			"OnSurfaceVariant": s.tok.OnSurfaceVariant,
-			"Primary":          s.tok.Primary,
-			"OnPrimary":        s.tok.OnPrimary,
-			"Secondary":        s.tok.Secondary,
-			"OnSecondary":      s.tok.OnSecondary,
-			"Error":            s.tok.Error,
-			"OnError":          s.tok.OnError,
-			"Outline":          s.tok.Outline,
-		}
-		for name, want := range s.want {
-			if got[name] != want {
-				t.Errorf("%s.%s = %v, want %v", s.name, name, got[name], want)
+		for _, r := range namedRamps(s.tok) {
+			for step := 200; step <= 900; step += 100 {
+				prev := relativeLuminance(r.ramp.Step(step - 100))
+				cur := relativeLuminance(r.ramp.Step(step))
+				if s.descending && cur >= prev {
+					t.Errorf("%s: %s.Step(%d) luminance %.4f not below step %d's %.4f",
+						s.name, r.name, step, cur, step-100, prev)
+				}
+				if !s.descending && cur <= prev {
+					t.Errorf("%s: %s.Step(%d) luminance %.4f not above step %d's %.4f",
+						s.name, r.name, step, cur, step-100, prev)
+				}
 			}
 		}
 	}
+}
+
+// TestFromSeedPinsSeedExactly verifies the light primary base is the seed
+// byte-for-byte — never read off a ramp step — with only the alpha forced
+// opaque, for the default seed and for arbitrary ones.
+func TestFromSeedPinsSeedExactly(t *testing.T) {
+	for _, seed := range []color.NRGBA{
+		{0x67, 0x50, 0xA4, 0xff}, // the default seed
+		{0x3b, 0x82, 0xf6, 0xff},
+		{0x0f, 0x76, 0x0f, 0x80}, // non-opaque alpha must be forced to 0xff
+	} {
+		light, _ := tokens.FromSeed(seed)
+		want := color.NRGBA{seed.R, seed.G, seed.B, 0xff}
+		if light.Primary != want {
+			t.Errorf("FromSeed(%v): light Primary = %v, want the seed %v byte-for-byte",
+				seed, light.Primary, want)
+		}
+	}
+	if p := tokens.DefaultLight.Primary; p != (color.NRGBA{0x67, 0x50, 0xA4, 0xff}) {
+		t.Errorf("DefaultLight.Primary = %v, want the seed #6750A4 byte-for-byte", p)
+	}
+}
+
+// defaultGolden returns the recorded palette FromSeed derives from
+// DefaultSeed (#6750A4): every ramp step, pin and semantic colour, byte for
+// byte. It is the regression anchor for the whole colour engine — any
+// change to the derivation (scales, chromas, hues, pins) must show up here
+// as an explicit, reviewed palette change. Landmarks that tie the recording
+// to ADR-007's evidence table: the dark Neutral steps reproduce the ADR's
+// measured dark column (#18171c, #222126, #2e2e33, #47464c, #9e9da4,
+// #cccbd2, #eeedf4) and the dark Primary pin is the ADR's recorded dark
+// fill #a690ea.
+func defaultGolden() (light, dark tokens.ColorTokens) {
+	hex := func(r, g, b uint8) color.NRGBA { return color.NRGBA{r, g, b, 0xff} }
+	light = tokens.ColorTokens{
+		Ramps: tokens.RampSet{
+			Neutral: tokens.Ramp{
+				hex(0xf7, 0xf6, 0xfd),
+				hex(0xe8, 0xe7, 0xef),
+				hex(0xd5, 0xd3, 0xdb),
+				hex(0xb6, 0xb5, 0xbc),
+				hex(0x99, 0x98, 0x9f),
+				hex(0x7a, 0x79, 0x7f),
+				hex(0x5c, 0x5b, 0x61),
+				hex(0x42, 0x41, 0x47),
+				hex(0x2c, 0x2b, 0x31),
+			},
+			Primary: tokens.Ramp{
+				hex(0xf7, 0xf5, 0xff),
+				hex(0xea, 0xe5, 0xff),
+				hex(0xd8, 0xce, 0xff),
+				hex(0xbd, 0xaa, 0xff),
+				hex(0xa0, 0x8b, 0xe5),
+				hex(0x82, 0x6c, 0xc2),
+				hex(0x64, 0x4d, 0xa1),
+				hex(0x4b, 0x32, 0x83),
+				hex(0x36, 0x19, 0x69),
+			},
+			Secondary: tokens.Ramp{
+				hex(0xf7, 0xf5, 0xff),
+				hex(0xea, 0xe5, 0xff),
+				hex(0xd6, 0xd1, 0xf0),
+				hex(0xb8, 0xb2, 0xd1),
+				hex(0x9a, 0x95, 0xb3),
+				hex(0x7b, 0x76, 0x93),
+				hex(0x5e, 0x58, 0x74),
+				hex(0x44, 0x3f, 0x59),
+				hex(0x2e, 0x29, 0x41),
+			},
+			Tertiary: tokens.Ramp{
+				hex(0xff, 0xf4, 0xf8),
+				hex(0xff, 0xe0, 0xeb),
+				hex(0xfb, 0xc6, 0xda),
+				hex(0xdb, 0xa8, 0xbc),
+				hex(0xbc, 0x8b, 0x9e),
+				hex(0x9b, 0x6c, 0x7f),
+				hex(0x7b, 0x4f, 0x61),
+				hex(0x5f, 0x35, 0x47),
+				hex(0x47, 0x1f, 0x31),
+			},
+			Error: tokens.Ramp{
+				hex(0xff, 0xf4, 0xf2),
+				hex(0xff, 0xe2, 0xdd),
+				hex(0xff, 0xc7, 0xbf),
+				hex(0xff, 0x9b, 0x8d),
+				hex(0xfa, 0x6b, 0x5b),
+				hex(0xd5, 0x49, 0x3c),
+				hex(0xb1, 0x24, 0x1c),
+				hex(0x8b, 0x00, 0x02),
+				hex(0x61, 0x00, 0x01),
+			},
+		},
+		Primary:     hex(0x67, 0x50, 0xa4), // the seed, byte-exact
+		OnPrimary:   tokens.White,
+		Secondary:   hex(0x60, 0x5b, 0x76),
+		OnSecondary: tokens.White,
+		Tertiary:    hex(0x7e, 0x51, 0x63),
+		OnTertiary:  tokens.White,
+		Error:       hex(0xb4, 0x27, 0x1f),
+		OnError:     tokens.White,
+		Background:  hex(0xf7, 0xf6, 0xfd),
+		Text:        hex(0x2c, 0x2b, 0x31),
+	}
+	dark = tokens.ColorTokens{
+		Ramps: tokens.RampSet{
+			Neutral: tokens.Ramp{
+				hex(0x18, 0x17, 0x1c),
+				hex(0x22, 0x21, 0x26),
+				hex(0x2e, 0x2e, 0x33),
+				hex(0x47, 0x46, 0x4c),
+				hex(0x9e, 0x9d, 0xa4),
+				hex(0xb6, 0xb5, 0xbc),
+				hex(0xcc, 0xcb, 0xd2),
+				hex(0xdd, 0xdc, 0xe3),
+				hex(0xee, 0xed, 0xf4),
+			},
+			Primary: tokens.Ramp{
+				hex(0x22, 0x00, 0x4e),
+				hex(0x2c, 0x0b, 0x5d),
+				hex(0x38, 0x1c, 0x6c),
+				hex(0x50, 0x37, 0x89),
+				hex(0xa6, 0x90, 0xea),
+				hex(0xbd, 0xaa, 0xff),
+				hex(0xd0, 0xc4, 0xff),
+				hex(0xdf, 0xd8, 0xff),
+				hex(0xef, 0xec, 0xff),
+			},
+			Secondary: tokens.Ramp{
+				hex(0x1a, 0x14, 0x2b),
+				hex(0x24, 0x1e, 0x36),
+				hex(0x30, 0x2b, 0x43),
+				hex(0x49, 0x43, 0x5d),
+				hex(0xa0, 0x9a, 0xb8),
+				hex(0xb8, 0xb2, 0xd1),
+				hex(0xce, 0xc8, 0xe8),
+				hex(0xdf, 0xd9, 0xf9),
+				hex(0xef, 0xec, 0xff),
+			},
+			Tertiary: tokens.Ramp{
+				hex(0x2f, 0x09, 0x1c),
+				hex(0x3b, 0x14, 0x26),
+				hex(0x49, 0x21, 0x33),
+				hex(0x64, 0x3a, 0x4c),
+				hex(0xc2, 0x90, 0xa3),
+				hex(0xdb, 0xa8, 0xbc),
+				hex(0xf2, 0xbe, 0xd2),
+				hex(0xff, 0xd0, 0xe2),
+				hex(0xff, 0xe8, 0xf0),
+			},
+			Error: tokens.Ramp{
+				hex(0x3a, 0x00, 0x00),
+				hex(0x4d, 0x00, 0x01),
+				hex(0x65, 0x00, 0x01),
+				hex(0x93, 0x00, 0x03),
+				hex(0xff, 0x71, 0x61),
+				hex(0xff, 0x9b, 0x8d),
+				hex(0xff, 0xbc, 0xb1),
+				hex(0xff, 0xd3, 0xcc),
+				hex(0xff, 0xe9, 0xe6),
+			},
+		},
+		Primary:     hex(0xa6, 0x90, 0xea), // ADR-007's recorded dark fill
+		OnPrimary:   hex(0x22, 0x00, 0x4e),
+		Secondary:   hex(0xa0, 0x9a, 0xb8),
+		OnSecondary: hex(0x1a, 0x14, 0x2b),
+		Tertiary:    hex(0xc2, 0x90, 0xa3),
+		OnTertiary:  hex(0x2f, 0x09, 0x1c),
+		Error:       hex(0xff, 0x71, 0x61),
+		OnError:     hex(0x3a, 0x00, 0x00),
+		Background:  hex(0x18, 0x17, 0x1c),
+		Text:        hex(0xee, 0xed, 0xf4),
+	}
+	fill := func(t tokens.ColorTokens) tokens.ColorTokens {
+		n := t.Ramps.Neutral
+		t.Surface = n.Step(200)
+		t.Divider = n.Step(300)
+		t.OnBackground = t.Text
+		t.OnSurface = n.Step(900)
+		t.SurfaceVariant = n.Step(300)
+		t.OnSurfaceVariant = n.Step(700)
+		t.Outline = n.Step(500)
+		return t
+	}
+	return fill(light), fill(dark)
+}
+
+// diffTokens reports every field and ramp step where got differs from want.
+func diffTokens(t *testing.T, scheme string, got, want tokens.ColorTokens) {
+	t.Helper()
+	if got == want {
+		return
+	}
+	gotRamps, wantRamps := namedRamps(got), namedRamps(want)
+	for i := range gotRamps {
+		for step := 100; step <= 900; step += 100 {
+			if g, w := gotRamps[i].ramp.Step(step), wantRamps[i].ramp.Step(step); g != w {
+				t.Errorf("%s: %s.Step(%d) = %v, want %v", scheme, gotRamps[i].name, step, g, w)
+			}
+		}
+	}
+	fields := func(c tokens.ColorTokens) map[string]color.NRGBA {
+		return map[string]color.NRGBA{
+			"Primary": c.Primary, "OnPrimary": c.OnPrimary,
+			"Secondary": c.Secondary, "OnSecondary": c.OnSecondary,
+			"Tertiary": c.Tertiary, "OnTertiary": c.OnTertiary,
+			"Error": c.Error, "OnError": c.OnError,
+			"Background": c.Background, "Text": c.Text,
+			"Surface": c.Surface, "Divider": c.Divider,
+			"OnBackground": c.OnBackground, "OnSurface": c.OnSurface,
+			"SurfaceVariant": c.SurfaceVariant, "OnSurfaceVariant": c.OnSurfaceVariant,
+			"Outline": c.Outline,
+		}
+	}
+	g, w := fields(got), fields(want)
+	for name := range w {
+		if g[name] != w[name] {
+			t.Errorf("%s: %s = %v, want %v", scheme, name, g[name], w[name])
+		}
+	}
+}
+
+// TestFromSeedGoldenPalette pins the entire palette derived from the
+// default seed — both schemes, all five ramps, every pin and semantic
+// colour — to the recording in defaultGolden, and verifies DefaultLight
+// and DefaultDark are exactly that derivation.
+func TestFromSeedGoldenPalette(t *testing.T) {
+	wantLight, wantDark := defaultGolden()
+	light, dark := tokens.FromSeed(tokens.DefaultSeed)
+	diffTokens(t, "FromSeed light", light, wantLight)
+	diffTokens(t, "FromSeed dark", dark, wantDark)
+	diffTokens(t, "DefaultLight", tokens.DefaultLight, wantLight)
+	diffTokens(t, "DefaultDark", tokens.DefaultDark, wantDark)
 }
 
 func TestWCAGAAContrast(t *testing.T) {

@@ -1,9 +1,10 @@
 // Package tokens holds the typed design values the whole system is styled
-// from: eleven-stop colour scales taken verbatim from Tailwind, the
-// ColorTokens colour vocabulary built out of them — ADR-007's nine-step
-// functional ramps, pinned role bases and thin semantic layer, with the
-// MD3-only names kept as deprecated aliases — the Material Design 3 type
-// scale in dp, and the 4-pt spacing, radius, elevation and motion scales.
+// from: the ColorTokens colour vocabulary — ADR-007's nine-step functional
+// ramps, pinned role bases and thin semantic layer, derived from a brand
+// seed by FromSeed, with the MD3-only names kept as deprecated aliases —
+// the Material Design 3 type scale in dp, and the 4-pt spacing, radius,
+// elevation and motion scales. The Tailwind eleven-stop scales survive
+// only as optional named palettes.
 //
 // Reach for it when you draw something yourself and want a value that matches
 // the components around it — a pane background, a gap, a corner radius, an

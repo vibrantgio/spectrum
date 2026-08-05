@@ -10,7 +10,12 @@ type ColorScale struct {
 	C50, C100, C200, C300, C400, C500, C600, C700, C800, C900, C950 color.NRGBA
 }
 
-// Palette families taken verbatim from the Tailwind CSS v3 default config.
+// Optional named palettes, taken verbatim from the Tailwind CSS v3 default
+// config. They are exactly that — palettes an application may reach for by
+// name — and no part of the semantic layer resolves from them: since D2.2
+// every role ramp, pin and semantic colour derives from a seed (see
+// FromSeed). Per ADR-002 the Tailwind values may survive only in this
+// arrangement, never behind a role name.
 var (
 	Slate = ColorScale{
 		C50:  color.NRGBA{0xf8, 0xfa, 0xfc, 0xff},
@@ -51,9 +56,12 @@ var (
 		C900: color.NRGBA{0x7f, 0x1d, 0x1d, 0xff},
 		C950: color.NRGBA{0x45, 0x0a, 0x0a, 0xff},
 	}
-
-	White = color.NRGBA{0xff, 0xff, 0xff, 0xff}
 )
+
+// White is pure white. Unlike the named palettes above it is part of the
+// semantic layer: FromSeed uses it as the on-colour over every light-mode
+// pinned base.
+var White = color.NRGBA{0xff, 0xff, 0xff, 0xff}
 
 // Ramp is one colour role's nine-step functional ramp per ADR-007. Steps run
 // 100–900 in hundreds and the step number carries the meaning: 100–300 are
@@ -100,19 +108,17 @@ type RampSet struct {
 // The MD3-only field names survive as deprecated aliases, resolved from ramp
 // steps at construction, until F3.3 deletes the shims.
 type ColorTokens struct {
-	// Ramps holds the functional ramps. In DefaultLight and DefaultDark only
-	// the Neutral steps the aliases below resolve from are populated; the
-	// remaining steps and the accent ramps stay zero until D2.2 derives full
-	// paired ramps from a seed.
+	// Ramps holds the functional ramps, fully populated: nine steps per
+	// role, generated on the shared lightness scale by FromSeed.
 	Ramps RampSet
 
 	// Pinned accent bases and their on-colours (ADR-007 "solid fill").
-	Primary     color.NRGBA // pinned primary base
+	Primary     color.NRGBA // pinned primary base — in a light scheme, the seed itself
 	OnPrimary   color.NRGBA // text/icon over Primary
 	Secondary   color.NRGBA // pinned secondary base
 	OnSecondary color.NRGBA // text/icon over Secondary
-	Tertiary    color.NRGBA // pinned tertiary base; zero until D2.2 generates it
-	OnTertiary  color.NRGBA // text/icon over Tertiary; zero until D2.2
+	Tertiary    color.NRGBA // pinned tertiary base
+	OnTertiary  color.NRGBA // text/icon over Tertiary
 	Error       color.NRGBA // pinned error base
 	OnError     color.NRGBA // text/icon over Error
 
@@ -144,7 +150,7 @@ type ColorTokens struct {
 // the semantic Surface and Divider, and the deprecated MD3 aliases — from
 // the ramps and pins already set on t, and returns the completed value.
 // Constructing tokens through it is what keeps each alias byte-identical to
-// its documented resolution; D2.2's seed generator reuses it.
+// its documented resolution; FromSeed builds both schemes through it.
 func resolveAliases(t ColorTokens) ColorTokens {
 	t.Surface = t.Ramps.Neutral.Step(200)
 	t.Divider = t.Ramps.Neutral.Step(300)
@@ -155,53 +161,3 @@ func resolveAliases(t ColorTokens) ColorTokens {
 	t.Outline = t.Ramps.Neutral.Step(500)
 	return t
 }
-
-// DefaultLight is the canonical light-mode colour token set.
-//
-// Every pre-ADR-007 field keeps its exact former value: the Neutral steps
-// the aliases resolve from are pinned to those Tailwind stops, and the
-// unaliased steps, the accent ramps and the Tertiary pin stay zero until
-// D2.2 replaces the whole set with ramps derived from a seed.
-var DefaultLight = resolveAliases(ColorTokens{
-	Ramps: RampSet{
-		Neutral: Ramp{
-			1: Slate.C50,  // 200 — card / raised surface
-			2: Slate.C100, // 300 — hover, tinted surface, separator
-			4: Slate.C300, // 500 — strong border
-			6: Slate.C700, // 700 — low-contrast text
-			8: Slate.C900, // 900 — body / high-contrast text
-		},
-	},
-	Primary:     Blue.C700,
-	OnPrimary:   White,
-	Secondary:   Slate.C600,
-	OnSecondary: White,
-	Error:       Red.C700,
-	OnError:     White,
-	Background:  White,
-	Text:        Slate.C900,
-})
-
-// DefaultDark is the canonical dark-mode colour token set. Its Neutral ramp
-// is DefaultLight's paired scale — the same step keeps the same job — and
-// its pins are the dark-appropriate bases. See DefaultLight for how the
-// ramps are populated until D2.2.
-var DefaultDark = resolveAliases(ColorTokens{
-	Ramps: RampSet{
-		Neutral: Ramp{
-			1: Slate.C900, // 200 — card / raised surface
-			2: Slate.C800, // 300 — hover, tinted surface, separator
-			4: Slate.C700, // 500 — strong border
-			6: Slate.C300, // 700 — low-contrast text
-			8: Slate.C100, // 900 — body / high-contrast text
-		},
-	},
-	Primary:     Blue.C400,
-	OnPrimary:   Slate.C900,
-	Secondary:   Slate.C400,
-	OnSecondary: Slate.C900,
-	Error:       Red.C400,
-	OnError:     Slate.C900,
-	Background:  Slate.C950,
-	Text:        Slate.C50,
-})
