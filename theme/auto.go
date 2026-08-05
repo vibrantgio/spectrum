@@ -16,12 +16,13 @@ func AutoLightDark() rx.Observable[Theme] {
 			colors = tokens.DefaultDark
 		}
 		return Theme{
-			Color:     rx.Of(colors),
-			Type:      rx.Of(tokens.DefaultTypeScale),
-			Motion:    rx.Of(tokens.Motion),
-			Spacing:   rx.Of(tokens.Spacing),
-			Radius:    rx.Of(tokens.Radius),
-			Elevation: rx.Of(tokens.Elevation),
+			Color:      rx.Of(colors),
+			Type:       rx.Of(tokens.DefaultTypeScale),
+			Typography: rx.Of(tokens.DefaultTypography),
+			Motion:     rx.Of(tokens.Motion),
+			Spacing:    rx.Of(tokens.Spacing),
+			Radius:     rx.Of(tokens.Radius),
+			Elevation:  rx.Of(tokens.Elevation),
 		}
 	})
 }

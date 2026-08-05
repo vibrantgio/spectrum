@@ -31,23 +31,25 @@ func collect[T any](obs rx.Observable[T]) ([]T, error) {
 // observable property the test asserts each window keeps to itself.
 func lightTheme() theme.Theme {
 	return theme.Theme{
-		Color:     rx.Of(tokens.DefaultLight),
-		Type:      rx.Of(tokens.DefaultTypeScale),
-		Motion:    rx.Of(tokens.Motion),
-		Spacing:   rx.Of(tokens.Spacing),
-		Radius:    rx.Of(tokens.Radius),
-		Elevation: rx.Of(tokens.Elevation),
+		Color:      rx.Of(tokens.DefaultLight),
+		Type:       rx.Of(tokens.DefaultTypeScale),
+		Typography: rx.Of(tokens.DefaultTypography),
+		Motion:     rx.Of(tokens.Motion),
+		Spacing:    rx.Of(tokens.Spacing),
+		Radius:     rx.Of(tokens.Radius),
+		Elevation:  rx.Of(tokens.Elevation),
 	}
 }
 
 func darkTheme() theme.Theme {
 	return theme.Theme{
-		Color:     rx.Of(tokens.DefaultDark),
-		Type:      rx.Of(tokens.DefaultTypeScale),
-		Motion:    rx.Of(tokens.Motion),
-		Spacing:   rx.Of(tokens.Spacing),
-		Radius:    rx.Of(tokens.Radius),
-		Elevation: rx.Of(tokens.Elevation),
+		Color:      rx.Of(tokens.DefaultDark),
+		Type:       rx.Of(tokens.DefaultTypeScale),
+		Typography: rx.Of(tokens.DefaultTypography),
+		Motion:     rx.Of(tokens.Motion),
+		Spacing:    rx.Of(tokens.Spacing),
+		Radius:     rx.Of(tokens.Radius),
+		Elevation:  rx.Of(tokens.Elevation),
 	}
 }
 
