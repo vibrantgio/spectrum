@@ -1,8 +1,10 @@
 // Package export serialises a theme.Theme emission into the project layout
 // claude.ai/design consumes: theme.json, the machine-readable generative
-// parameters, and styles.css, the token sheet. Capture collects the first
-// emission of each Theme observable into a Snapshot; Write renders the pair
-// into a target directory. cmd/vg-tokens is the command-line front door.
+// parameters; styles.css, the token sheet; readme.md, the project's front
+// door; and the foundation pages under foundations/. Capture collects the
+// first emission of each Theme observable into a Snapshot; Write renders
+// the whole tree into a target directory. cmd/vg-tokens is the command-line
+// front door.
 //
 // # The token sheet
 //
@@ -40,6 +42,21 @@
 //     "0 <d>px <2d>px 0 rgba(0, 0, 0, 0.2)" — y-offset the depth, blur
 //     twice it, no spread, black at 20% — and level 0 is "none". E2.1
 //     remaps elevation to surface roles and E5.1 re-emits it.
+//
+// # The foundation pages
+//
+// foundations/color.html, type.html and layout.html render the scales at
+// real sizes, and readme.md is the file a human or an agent reads first.
+// The pages are static HTML that reads only from the emitted sheet: every
+// styled colour, size, radius, shadow and font value is a var() reference
+// into ../styles.css, so regenerating the sheet from another seed reflows
+// every page. Literal token values appear only as annotation text — hexes,
+// px numbers, and the measured APCA Lc and WCAG 2 ratio of each text pair —
+// printed for both modes (labelled L and D) because text cannot flip with a
+// class the way painted specimens do. Each page carries a light/dark toggle
+// flipping the .dark class on the root element. The page test enforces the
+// no-hard-coded-values rule: no hex colours or px lengths in any style
+// context, and every referenced variable declared by the sheet.
 //
 // # The generative parameters
 //

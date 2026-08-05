@@ -1,5 +1,6 @@
-// Command vg-tokens writes the Claude Design token pair — theme.json and
-// styles.css — for a spectrum theme into a target directory.
+// Command vg-tokens writes the Claude Design project layout — theme.json,
+// styles.css, readme.md and the foundation pages under foundations/ — for a
+// spectrum theme into a target directory.
 //
 // Usage:
 //
@@ -23,7 +24,7 @@ import (
 )
 
 func main() {
-	out := flag.String("out", "design", "target directory for theme.json and styles.css")
+	out := flag.String("out", "design", "target directory for the generated project")
 	seedHex := flag.String("seed", "", "brand seed as #rrggbb (default: the built-in default seed)")
 	flag.Parse()
 
@@ -44,7 +45,7 @@ func main() {
 	if err := export.Write(*out, snap); err != nil {
 		fatal(err)
 	}
-	fmt.Printf("wrote %s/theme.json and %s/styles.css\n", *out, *out)
+	fmt.Printf("wrote %s: theme.json, styles.css, readme.md, foundations/{color,type,layout}.html\n", *out)
 }
 
 // parseSeed accepts #rrggbb or rrggbb.

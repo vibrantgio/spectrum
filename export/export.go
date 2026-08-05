@@ -70,23 +70,33 @@ func Capture(th theme.Theme) (Snapshot, error) {
 	return s, nil
 }
 
-// Write renders s into dir as theme.json and styles.css, creating dir if
-// needed. Existing files are overwritten: the pair is generated output,
-// regenerated whole.
+// Write renders s into dir as the full Claude Design project layout —
+// theme.json, styles.css, readme.md and the foundation pages under
+// foundations/ — creating directories as needed. Existing files are
+// overwritten: the tree is generated output, regenerated whole.
 func Write(dir string, s Snapshot) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("export: Write: %w", err)
-	}
-	css := stylesCSS(s)
-	if err := os.WriteFile(filepath.Join(dir, "styles.css"), []byte(css), 0o644); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "foundations"), 0o755); err != nil {
 		return fmt.Errorf("export: Write: %w", err)
 	}
 	js, err := themeJSON(s)
 	if err != nil {
 		return fmt.Errorf("export: Write: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "theme.json"), js, 0o644); err != nil {
-		return fmt.Errorf("export: Write: %w", err)
+	files := []struct {
+		name    string
+		content []byte
+	}{
+		{"theme.json", js},
+		{"styles.css", []byte(stylesCSS(s))},
+		{"readme.md", []byte(readmeMD(s))},
+		{filepath.Join("foundations", "color.html"), []byte(colorHTML(s))},
+		{filepath.Join("foundations", "type.html"), []byte(typeHTML(s))},
+		{filepath.Join("foundations", "layout.html"), []byte(layoutHTML(s))},
+	}
+	for _, f := range files {
+		if err := os.WriteFile(filepath.Join(dir, f.name), f.content, 0o644); err != nil {
+			return fmt.Errorf("export: Write: %w", err)
+		}
 	}
 	return nil
 }
