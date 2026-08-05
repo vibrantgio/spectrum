@@ -235,12 +235,40 @@ func WithA11ySource(src a11y.Source) Option {
 // chosen palette, whether that came from WithSeed, WithPalette, the OS
 // accent, or the defaults.
 //
-// Until E3.3 lands the high-contrast derivation, the default is the
-// identity: the wiring is live and testable, the palette unchanged. E3.3
-// replaces this variable with the real derivation.
+// The default (E3.3) re-derives from the resolved pair's own seed:
+// tokens.FromSeedHighContrast of light.Primary, which for every
+// seed-derived pair — the defaults, WithSeed, an OS accent — IS the seed,
+// byte-for-byte, per the FromSeed pin contract. A hand-built WithPalette
+// pair carries no seed, but its light Primary is still its pinned brand
+// base, so it gets a seed-derived high-contrast approximation via that pin
+// — FromSeedHighContrast accepts any colour, so derivation never fails.
+// Derivations are memoized per pair, mirroring the per-seed palette cache.
+//
+// It is a variable so an application (or test) can substitute its own
+// derivation.
 var HighContrastVariant = func(light, dark tokens.ColorTokens) (hcLight, hcDark tokens.ColorTokens) {
-	return light, dark
+	hcMu.Lock()
+	defer hcMu.Unlock()
+	key := colorPair{light: light, dark: dark}
+	if c, ok := hcByPair[key]; ok {
+		return c.light, c.dark
+	}
+	l, d := tokens.FromSeedHighContrast(light.Primary)
+	if hcByPair == nil {
+		hcByPair = make(map[colorPair]colorPair)
+	}
+	hcByPair[key] = colorPair{light: l, dark: d}
+	return l, d
 }
+
+// hcByPair memoizes the default HighContrastVariant per resolved pair, the
+// same idiom as palette.bySeed: the derivation runs on first sight of a
+// pair, not on every emission. Keyed on the whole pair, not just the seed
+// pin, so the cache stays correct for any pair shape.
+var (
+	hcMu     sync.Mutex
+	hcByPair map[colorPair]colorPair
+)
 
 // LiveTheme bridges system-appearance changes to a theme.Theme stream.
 // Each emission is a fresh theme.Theme whose Color field matches the OS

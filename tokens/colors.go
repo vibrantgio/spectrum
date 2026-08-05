@@ -128,7 +128,10 @@ type ColorTokens struct {
 	Background color.NRGBA // pinned app background
 	Text       color.NRGBA // pinned body text over Background
 	Surface    color.NRGBA // card / raised surface — Ramps.Neutral.Step(200)
-	Divider    color.NRGBA // subtle border, separator — Ramps.Neutral.Step(300)
+	// Divider is the subtle border / separator — Ramps.Neutral.Step(300),
+	// except in the high-contrast variant, which resolves it from the
+	// strong-border step 500 (see FromSeedHighContrast).
+	Divider color.NRGBA
 
 	// Deprecated: alias of Text; deleted in F3.3.
 	OnBackground color.NRGBA
@@ -149,11 +152,13 @@ type ColorTokens struct {
 // resolveAliases fills every field defined as a resolution of a ramp step —
 // the semantic Surface and Divider, and the deprecated MD3 aliases — from
 // the ramps and pins already set on t, and returns the completed value.
-// Constructing tokens through it is what keeps each alias byte-identical to
-// its documented resolution; FromSeed builds both schemes through it.
-func resolveAliases(t ColorTokens) ColorTokens {
+// dividerStep is the Neutral step Divider resolves from: 300 in the default
+// derivation, 500 in the high-contrast variant. Constructing tokens through
+// it is what keeps each alias byte-identical to its documented resolution;
+// FromSeed and FromSeedHighContrast build both schemes through it.
+func resolveAliases(t ColorTokens, dividerStep int) ColorTokens {
 	t.Surface = t.Ramps.Neutral.Step(200)
-	t.Divider = t.Ramps.Neutral.Step(300)
+	t.Divider = t.Ramps.Neutral.Step(dividerStep)
 	t.OnBackground = t.Text
 	t.OnSurface = t.Ramps.Neutral.Step(900)
 	t.SurfaceVariant = t.Ramps.Neutral.Step(300)

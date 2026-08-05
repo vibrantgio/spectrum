@@ -50,6 +50,32 @@
 //     (Lc ≥ 85, WCAG ≈ 6.4:1); dark bases sit at L* 82, so their on-colour
 //     is their own dark ramp's step 100 (Lc ≥ 73, WCAG ≈ 11:1). D2.4's
 //     APCA gate enforces ADR-007's Lc ≥ 60 on both.
+//
+// FromSeedHighContrast (task E3.3) derives the increased-contrast variant
+// from the same seed by the same machinery — it is a FromSeed option, not a
+// third hand-written scheme. Three widenings, each computed against the
+// APCA gate rather than guessed:
+//
+//   - The 700 text step deepens to the default scale's 900 depth in both
+//     modes — light 700 L* 39 → 6, dark 700 L* 82 → 94 — so 700 text meets
+//     the same Lc ≥ 90 bar the default asks only of 900 (light min Lc 90.7,
+//     dark 93.0 across the five ramps; APCA's soft black clamp caps lighter
+//     choices below 90, the same wall D2.4 hit). The 800 and 900 stops
+//     slide outward — light 3 and 0, dark 97 and 100 — keeping the ladder
+//     strictly monotonic and the 900 gate clear with margin (light Lc 92.3,
+//     dark 104.4). Steps 100–600 are the default scale unchanged: the
+//     grounds stay, the text pulls away.
+//
+//   - Divider resolves from Neutral step 500 instead of 300: the separator
+//     jumps from the subtle-border rung to ADR-007's strong-border rung.
+//
+//   - Each pinned base's on-colour is pushed further from its base. The
+//     dark pins' on-colours drop from their ramp's step 100 (L* 8, Lc ≈ 74
+//     — just under the variant's Lc ≥ 75 floor) to tone 0, the scale's
+//     floor (Lc ≥ 76.3). The light pins keep White: it is already the far
+//     end of the axis and already clears the floor (Lc ≥ 85.7), so the
+//     pins do not move — the light primary base stays the seed
+//     byte-for-byte, the same contract as FromSeed.
 package tokens
 
 import (
@@ -66,6 +92,15 @@ var (
 	darkTones  = [9]int{8, 13, 19, 30, 65, 74, 82, 88, 94}
 )
 
+// hcLightTones and hcDarkTones are the high-contrast variant's scales:
+// steps 100–600 are the default scale unchanged, 700 deepens to the default
+// 900 depth so 700 text meets the Lc ≥ 90 bar, and 800/900 slide to the
+// axis ends to keep the ladder strictly monotonic. See the file header.
+var (
+	hcLightTones = [9]int{97, 92, 85, 74, 63, 51, 6, 3, 0}
+	hcDarkTones  = [9]int{8, 13, 19, 30, 65, 74, 94, 97, 100}
+)
+
 // Accent-derivation constants; see the file header for provenance.
 const (
 	neutralChroma    = 0.010 // MD3 neutral chroma 4 in OKLCh units
@@ -77,6 +112,25 @@ const (
 	lightPinTone     = 40    // MD3's accent-base tone; the default seed's own depth
 	darkPinTone      = 82    // the dark scale's step-700 L*; D2.4 raised it from the
 	// spike's 65 — no on-colour reaches Lc 60 over an L* 65 mid-tone
+	darkOnTone   = 8 // dark pins' on-colour depth: the dark scale's step-100 L*
+	hcDarkOnTone = 0 // high contrast pushes the dark on-colours to the axis floor
+)
+
+// derivation is the knob set that separates FromSeed from its high-contrast
+// variant: the two lightness scales, the ramp step Divider resolves from,
+// and the CIELAB L* the dark pins' on-colours are realized at. Everything
+// else — hues, chromas, pin depths, the seed-exact light primary — is
+// shared, which is what makes the variant a FromSeed option rather than a
+// third hand-written scheme.
+type derivation struct {
+	lightTones, darkTones [9]int
+	dividerStep           int // ramp step Divider resolves from
+	darkOnTone            int // L* of the dark pins' on-colours
+}
+
+var (
+	defaultDerivation = derivation{lightTones, darkTones, 300, darkOnTone}
+	hcDerivation      = derivation{hcLightTones, hcDarkTones, 500, hcDarkOnTone}
 )
 
 // rampOf sweeps one role's hue and chroma across a lightness scale.
@@ -99,6 +153,29 @@ func rampOf(tones [9]int, hue, chroma float64) Ramp {
 // re-brand by calling FromSeed with their own colour and handing the pair
 // to a theme.
 func FromSeed(seed stdcolor.NRGBA) (light, dark ColorTokens) {
+	return fromSeed(seed, defaultDerivation)
+}
+
+// FromSeedHighContrast derives the increased-contrast variant of FromSeed's
+// pair from the same seed: same roles, hues, chromas and pin depths, with
+// the tone separation widened where it counts — the 700 text step deepened
+// to the default 900 depth (Lc ≥ 90 where the default asks 60), Divider
+// resolved from Neutral step 500 instead of 300, and the dark pins'
+// on-colours pushed to the tonal axis floor (Lc ≥ 75 over their bases; the
+// light pins keep White, which already clears that floor, so the light
+// primary base is still the seed byte-for-byte). The full rules are in the
+// file header; the derived default-seed variant is recorded in this
+// package's high-contrast golden test.
+//
+// It is the palette spectrum/system swaps in while the OS reports increased
+// contrast (see system.HighContrastVariant).
+func FromSeedHighContrast(seed stdcolor.NRGBA) (light, dark ColorTokens) {
+	return fromSeed(seed, hcDerivation)
+}
+
+// fromSeed is the shared derivation engine behind FromSeed and
+// FromSeedHighContrast; d selects which variant's knobs apply.
+func fromSeed(seed stdcolor.NRGBA, d derivation) (light, dark ColorTokens) {
 	seed.A = 0xff
 	_, seedChroma, seedHue := color.OKLChFromNRGBA(seed)
 
@@ -113,14 +190,17 @@ func FromSeed(seed stdcolor.NRGBA) (light, dark ColorTokens) {
 	}
 	var lr, dr [5]Ramp
 	for i, role := range roles {
-		lr[i] = rampOf(lightTones, role.hue, role.chroma)
-		dr[i] = rampOf(darkTones, role.hue, role.chroma)
+		lr[i] = rampOf(d.lightTones, role.hue, role.chroma)
+		dr[i] = rampOf(d.darkTones, role.hue, role.chroma)
 	}
 	lightPin := func(i int) stdcolor.NRGBA {
 		return color.Tone(roles[i].hue, roles[i].chroma, lightPinTone)
 	}
 	darkPin := func(i int) stdcolor.NRGBA {
 		return color.Tone(roles[i].hue, roles[i].chroma, darkPinTone)
+	}
+	darkOn := func(i int) stdcolor.NRGBA {
+		return color.Tone(roles[i].hue, roles[i].chroma, d.darkOnTone)
 	}
 
 	light = resolveAliases(ColorTokens{
@@ -135,20 +215,20 @@ func FromSeed(seed stdcolor.NRGBA) (light, dark ColorTokens) {
 		OnError:     White,
 		Background:  lr[0].Step(100),
 		Text:        lr[0].Step(900),
-	})
+	}, d.dividerStep)
 	dark = resolveAliases(ColorTokens{
 		Ramps:       RampSet{Neutral: dr[0], Primary: dr[1], Secondary: dr[2], Tertiary: dr[3], Error: dr[4]},
 		Primary:     darkPin(1),
-		OnPrimary:   dr[1].Step(100),
+		OnPrimary:   darkOn(1),
 		Secondary:   darkPin(2),
-		OnSecondary: dr[2].Step(100),
+		OnSecondary: darkOn(2),
 		Tertiary:    darkPin(3),
-		OnTertiary:  dr[3].Step(100),
+		OnTertiary:  darkOn(3),
 		Error:       darkPin(4),
-		OnError:     dr[4].Step(100),
+		OnError:     darkOn(4),
 		Background:  dr[0].Step(100),
 		Text:        dr[0].Step(900),
-	})
+	}, d.dividerStep)
 	return light, dark
 }
 

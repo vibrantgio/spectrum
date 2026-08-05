@@ -378,6 +378,226 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 	return fill(light), fill(dark)
 }
 
+// hcGolden returns the recorded palette FromSeedHighContrast derives from
+// DefaultSeed: the E3.3 high-contrast variant, byte for byte. Landmarks
+// that tie the recording to the variant's three widenings: steps 100–600 of
+// every ramp are byte-identical to defaultGolden's (the grounds stay), the
+// 700 stops sit at the default scale's 900 depth (light #141318 neutral 700
+// = defaultGolden's neutral 900; dark #eeedf4 mirrors it) with 800/900
+// sliding to the axis ends (light 900 pure black, dark 900 pure white, Text
+// following in both modes), Divider is the step-500 strong border rather
+// than 300, and the dark pins keep their L* 82 bases while their on-colours
+// drop to pure black (tone 0). The light pins are byte-identical to
+// defaultGolden's — White already clears the raised Lc ≥ 75 floor — so the
+// HC light Primary is still the seed byte-for-byte.
+func hcGolden() (light, dark tokens.ColorTokens) {
+	hex := func(r, g, b uint8) color.NRGBA { return color.NRGBA{r, g, b, 0xff} }
+	black, white := hex(0x00, 0x00, 0x00), hex(0xff, 0xff, 0xff)
+	light = tokens.ColorTokens{
+		Ramps: tokens.RampSet{
+			Neutral: tokens.Ramp{
+				hex(0xf7, 0xf6, 0xfd),
+				hex(0xe8, 0xe7, 0xef),
+				hex(0xd5, 0xd3, 0xdb),
+				hex(0xb6, 0xb5, 0xbc),
+				hex(0x99, 0x98, 0x9f),
+				hex(0x7a, 0x79, 0x7f),
+				hex(0x14, 0x13, 0x18),
+				hex(0x0b, 0x0a, 0x0f),
+				black,
+			},
+			Primary: tokens.Ramp{
+				hex(0xf7, 0xf5, 0xff),
+				hex(0xea, 0xe5, 0xff),
+				hex(0xd8, 0xce, 0xff),
+				hex(0xbd, 0xaa, 0xff),
+				hex(0xa0, 0x8b, 0xe5),
+				hex(0x82, 0x6c, 0xc2),
+				hex(0x1d, 0x00, 0x44),
+				hex(0x12, 0x00, 0x2f),
+				black,
+			},
+			Secondary: tokens.Ramp{
+				hex(0xf7, 0xf5, 0xff),
+				hex(0xea, 0xe5, 0xff),
+				hex(0xd6, 0xd1, 0xf0),
+				hex(0xb8, 0xb2, 0xd1),
+				hex(0x9a, 0x95, 0xb3),
+				hex(0x7b, 0x76, 0x93),
+				hex(0x15, 0x10, 0x26),
+				hex(0x0d, 0x07, 0x1c),
+				black,
+			},
+			Tertiary: tokens.Ramp{
+				hex(0xff, 0xf4, 0xf8),
+				hex(0xff, 0xe0, 0xeb),
+				hex(0xfb, 0xc6, 0xda),
+				hex(0xdb, 0xa8, 0xbc),
+				hex(0xbc, 0x8b, 0x9e),
+				hex(0x9b, 0x6c, 0x7f),
+				hex(0x2a, 0x05, 0x17),
+				hex(0x1f, 0x00, 0x0f),
+				black,
+			},
+			Error: tokens.Ramp{
+				hex(0xff, 0xf4, 0xf2),
+				hex(0xff, 0xe2, 0xdd),
+				hex(0xff, 0xc7, 0xbf),
+				hex(0xff, 0x9b, 0x8d),
+				hex(0xfa, 0x6b, 0x5b),
+				hex(0xd5, 0x49, 0x3c),
+				hex(0x32, 0x00, 0x00),
+				hex(0x22, 0x00, 0x00),
+				black,
+			},
+		},
+		Primary:     hex(0x67, 0x50, 0xa4), // still the seed, byte-exact
+		OnPrimary:   tokens.White,
+		Secondary:   hex(0x60, 0x5b, 0x76),
+		OnSecondary: tokens.White,
+		Tertiary:    hex(0x7e, 0x51, 0x63),
+		OnTertiary:  tokens.White,
+		Error:       hex(0xb4, 0x27, 0x1f),
+		OnError:     tokens.White,
+		Background:  hex(0xf7, 0xf6, 0xfd),
+		Text:        black,
+	}
+	dark = tokens.ColorTokens{
+		Ramps: tokens.RampSet{
+			Neutral: tokens.Ramp{
+				hex(0x18, 0x17, 0x1c),
+				hex(0x22, 0x21, 0x26),
+				hex(0x2e, 0x2e, 0x33),
+				hex(0x47, 0x46, 0x4c),
+				hex(0x9e, 0x9d, 0xa4),
+				hex(0xb6, 0xb5, 0xbc),
+				hex(0xee, 0xed, 0xf4),
+				hex(0xf7, 0xf6, 0xfd),
+				white,
+			},
+			Primary: tokens.Ramp{
+				hex(0x22, 0x00, 0x4e),
+				hex(0x2c, 0x0b, 0x5d),
+				hex(0x38, 0x1c, 0x6c),
+				hex(0x50, 0x37, 0x89),
+				hex(0xa6, 0x90, 0xea),
+				hex(0xbd, 0xaa, 0xff),
+				hex(0xef, 0xec, 0xff),
+				hex(0xf7, 0xf5, 0xff),
+				white,
+			},
+			Secondary: tokens.Ramp{
+				hex(0x1a, 0x14, 0x2b),
+				hex(0x24, 0x1e, 0x36),
+				hex(0x30, 0x2b, 0x43),
+				hex(0x49, 0x43, 0x5d),
+				hex(0xa0, 0x9a, 0xb8),
+				hex(0xb8, 0xb2, 0xd1),
+				hex(0xef, 0xec, 0xff),
+				hex(0xf7, 0xf5, 0xff),
+				white,
+			},
+			Tertiary: tokens.Ramp{
+				hex(0x2f, 0x09, 0x1c),
+				hex(0x3b, 0x14, 0x26),
+				hex(0x49, 0x21, 0x33),
+				hex(0x64, 0x3a, 0x4c),
+				hex(0xc2, 0x90, 0xa3),
+				hex(0xdb, 0xa8, 0xbc),
+				hex(0xff, 0xe8, 0xf0),
+				hex(0xff, 0xf4, 0xf8),
+				white,
+			},
+			Error: tokens.Ramp{
+				hex(0x3a, 0x00, 0x00),
+				hex(0x4d, 0x00, 0x01),
+				hex(0x65, 0x00, 0x01),
+				hex(0x93, 0x00, 0x03),
+				hex(0xff, 0x71, 0x61),
+				hex(0xff, 0x9b, 0x8d),
+				hex(0xff, 0xe9, 0xe6),
+				hex(0xff, 0xf4, 0xf2),
+				white,
+			},
+		},
+		Primary:     hex(0xd0, 0xc4, 0xff), // L* 82, unchanged from the default
+		OnPrimary:   black,
+		Secondary:   hex(0xce, 0xc8, 0xe8),
+		OnSecondary: black,
+		Tertiary:    hex(0xf2, 0xbe, 0xd2),
+		OnTertiary:  black,
+		Error:       hex(0xff, 0xbc, 0xb1),
+		OnError:     black,
+		Background:  hex(0x18, 0x17, 0x1c),
+		Text:        white,
+	}
+	fill := func(t tokens.ColorTokens) tokens.ColorTokens {
+		n := t.Ramps.Neutral
+		t.Surface = n.Step(200)
+		t.Divider = n.Step(500) // the HC variant's strong-border divider
+		t.OnBackground = t.Text
+		t.OnSurface = n.Step(900)
+		t.SurfaceVariant = n.Step(300)
+		t.OnSurfaceVariant = n.Step(700)
+		t.Outline = n.Step(500)
+		return t
+	}
+	return fill(light), fill(dark)
+}
+
+// TestFromSeedHighContrastGoldenPalette pins the high-contrast variant
+// derived from the default seed — both schemes, all five ramps, every pin
+// and semantic colour — to the recording in hcGolden.
+func TestFromSeedHighContrastGoldenPalette(t *testing.T) {
+	wantLight, wantDark := hcGolden()
+	light, dark := tokens.FromSeedHighContrast(tokens.DefaultSeed)
+	diffTokens(t, "FromSeedHighContrast light", light, wantLight)
+	diffTokens(t, "FromSeedHighContrast dark", dark, wantDark)
+}
+
+// TestFromSeedHighContrastSharesGrounds verifies the variant widens tone
+// separation without moving the grounds or the light pins: steps 100–600 of
+// every ramp are byte-identical to FromSeed's, and the light pinned bases —
+// the seed-exact Primary included — and their White on-colours carry over
+// unchanged.
+func TestFromSeedHighContrastSharesGrounds(t *testing.T) {
+	seeds := []color.NRGBA{
+		tokens.DefaultSeed,
+		{0x3b, 0x82, 0xf6, 0xff},
+	}
+	for _, seed := range seeds {
+		light, dark := tokens.FromSeed(seed)
+		hcLight, hcDark := tokens.FromSeedHighContrast(seed)
+		for i := range namedRamps(light) {
+			for step := 100; step <= 600; step += 100 {
+				if g, w := namedRamps(hcLight)[i].ramp.Step(step), namedRamps(light)[i].ramp.Step(step); g != w {
+					t.Errorf("seed %v: HC light %s.Step(%d) = %v, want the default's %v",
+						seed, namedRamps(light)[i].name, step, g, w)
+				}
+				if g, w := namedRamps(hcDark)[i].ramp.Step(step), namedRamps(dark)[i].ramp.Step(step); g != w {
+					t.Errorf("seed %v: HC dark %s.Step(%d) = %v, want the default's %v",
+						seed, namedRamps(dark)[i].name, step, g, w)
+				}
+			}
+		}
+		lightPins := [][2]color.NRGBA{
+			{hcLight.Primary, light.Primary}, {hcLight.OnPrimary, light.OnPrimary},
+			{hcLight.Secondary, light.Secondary}, {hcLight.OnSecondary, light.OnSecondary},
+			{hcLight.Tertiary, light.Tertiary}, {hcLight.OnTertiary, light.OnTertiary},
+			{hcLight.Error, light.Error}, {hcLight.OnError, light.OnError},
+		}
+		for i, p := range lightPins {
+			if p[0] != p[1] {
+				t.Errorf("seed %v: HC light pin/on #%d = %v, want the default's %v", seed, i, p[0], p[1])
+			}
+		}
+		want := color.NRGBA{seed.R, seed.G, seed.B, 0xff}
+		if hcLight.Primary != want {
+			t.Errorf("seed %v: HC light Primary = %v, want the seed byte-for-byte", seed, hcLight.Primary)
+		}
+	}
+}
+
 // diffTokens reports every field and ramp step where got differs from want.
 func diffTokens(t *testing.T, scheme string, got, want tokens.ColorTokens) {
 	t.Helper()

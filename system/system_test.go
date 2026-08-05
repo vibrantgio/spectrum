@@ -690,12 +690,13 @@ func TestFromSourceThemeReduceMotionComposesOnSeededPalette(t *testing.T) {
 	}
 }
 
-func TestFromSourceThemeHighContrastDefaultIsIdentity(t *testing.T) {
-	// Until E3.3 lands the derivation, HighContrastVariant defaults to the
-	// identity: high contrast on, palette unchanged — the wiring is live
-	// but selects the default palette.
+func TestFromSourceThemeHighContrastDefaultDerivesVariant(t *testing.T) {
+	// E3.3's default hook: high contrast on with the default palette emits
+	// tokens.FromSeedHighContrast of the default seed — the light Primary
+	// of the resolved pair IS the seed per the FromSeed pin contract.
 	appearance := &fakeSource{vals: []system.Appearance{{}}}
 	prefs := &fakeA11ySource{vals: []a11y.A11yPrefs{{HighContrast: true}}}
+	wantLight, _ := tokens.FromSeedHighContrast(tokens.DefaultSeed)
 
 	themes, err := collect(system.FromSourceTheme(appearance, time.Hour, system.WithA11ySource(prefs)).Take(1))
 	if err != nil {
@@ -705,8 +706,31 @@ func TestFromSourceThemeHighContrastDefaultIsIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("color observe: %v", err)
 	}
-	if len(colors) != 1 || colors[0] != tokens.DefaultLight {
-		t.Errorf("identity HighContrastVariant must leave the default palette; got %+v", colors)
+	if len(colors) != 1 || colors[0] != wantLight {
+		t.Errorf("high contrast must emit the default seed's high-contrast variant; got %+v", colors)
+	}
+}
+
+func TestHighContrastVariantDerivesFromPrimaryPin(t *testing.T) {
+	// The default hook's contract for every pair shape: the variant is
+	// tokens.FromSeedHighContrast of the pair's light Primary pin. For a
+	// seeded pair that pin is the seed byte-for-byte; for a hand-built
+	// WithPalette pair it is still the pinned brand base, so a hand-built
+	// palette gets a seed-derived high-contrast approximation via its pin.
+	seededLight, seededDark := tokens.FromSeed(customSeed)
+	wantLight, wantDark := tokens.FromSeedHighContrast(customSeed)
+	gotLight, gotDark := system.HighContrastVariant(seededLight, seededDark)
+	if gotLight != wantLight || gotDark != wantDark {
+		t.Errorf("seeded pair: variant is not FromSeedHighContrast(seed)")
+	}
+
+	// A hand-built pair: tweak a seeded pair so it is no longer FromSeed
+	// output, keeping the Primary pin as the recoverable brand base.
+	handLight, handDark := seededLight, seededDark
+	handLight.Surface = tokens.White
+	gotLight, gotDark = system.HighContrastVariant(handLight, handDark)
+	if gotLight != wantLight || gotDark != wantDark {
+		t.Errorf("hand-built pair: variant must derive from the light Primary pin")
 	}
 }
 

@@ -88,11 +88,73 @@ func wcagVerdict(ratio float64) string {
 	return "fail"
 }
 
-// TestAPCAContrastGateHighContrast records the E3.3 gap: ADR-007's gate
-// must also hold for the high-contrast variant, but that variant does not
-// exist yet — E3.3 (high-contrast palette) has not landed. When it does,
-// extend TestAPCAContrastGate's scheme table with the variant and delete
-// this skip.
+// TestAPCAContrastGateHighContrast is the E3.3 gate over the high-contrast
+// variant of the default seed, with the variant's floors above the
+// defaults': in every role ramp, step 900 must reach |Lc| ≥ 90 as before
+// AND step 700 must now also reach |Lc| ≥ 90 (the default gate asks 60)
+// over the step-100 and step-200 grounds, and each pinned base's on-colour
+// |Lc| ≥ 75 (the default asks 60). Per ADR-007's arrangement WCAG ratios
+// are reported alongside — here against AAA (7:1), the level a
+// high-contrast conformance claim would cite — but never gated on: only
+// APCA failures fail this test.
+//
+// Measured margins at recording time: light min 700 Lc 90.7, 900 Lc 92.3,
+// pins Lc 85.7; dark min 700 Lc 93.1, 900 Lc 104.4, pins Lc 76.3.
 func TestAPCAContrastGateHighContrast(t *testing.T) {
-	t.Skip("E3.3 (high-contrast palette) has not landed; gate its variant here when it does")
+	hcLight, hcDark := tokens.FromSeedHighContrast(tokens.DefaultSeed)
+	for _, s := range []struct {
+		name string
+		tok  tokens.ColorTokens
+	}{
+		{"HighContrastLight", hcLight},
+		{"HighContrastDark", hcDark},
+	} {
+		t.Run(s.name, func(t *testing.T) {
+			for _, r := range namedRamps(s.tok) {
+				for _, textStep := range []int{900, 700} {
+					for _, groundStep := range []int{100, 200} {
+						text := r.ramp.Step(textStep)
+						ground := r.ramp.Step(groundStep)
+						lc := color.APCA(text, ground)
+						wcag := color.ContrastRatio(text, ground)
+						t.Logf("%s %d on %d: Lc %.2f (gate ≥ 90), WCAG %.2f:1 (AAA %.1f:1: %s, cited not gating)",
+							r.name, textStep, groundStep, lc, wcag, wcagAAA, wcagAAAVerdict(wcag))
+						if math.Abs(lc) < 90 {
+							t.Errorf("%s: step %d on step-%d ground: |Lc| %.2f < 90",
+								r.name, textStep, groundStep, math.Abs(lc))
+						}
+					}
+				}
+			}
+			for _, p := range []struct {
+				name     string
+				base, on stdcolor.NRGBA
+			}{
+				{"Primary", s.tok.Primary, s.tok.OnPrimary},
+				{"Secondary", s.tok.Secondary, s.tok.OnSecondary},
+				{"Tertiary", s.tok.Tertiary, s.tok.OnTertiary},
+				{"Error", s.tok.Error, s.tok.OnError},
+			} {
+				lc := color.APCA(p.on, p.base)
+				wcag := color.ContrastRatio(p.on, p.base)
+				t.Logf("pin %s: on-colour Lc %.2f (gate ≥ 75), WCAG %.2f:1 (AAA %.1f:1: %s, cited not gating)",
+					p.name, lc, wcag, wcagAAA, wcagAAAVerdict(wcag))
+				if math.Abs(lc) < 75 {
+					t.Errorf("pin %s: on-colour |Lc| %.2f < 75", p.name, math.Abs(lc))
+				}
+			}
+		})
+	}
+}
+
+// wcagAAA is WCAG 2's AAA normal-text ratio, reported (never gated on) by
+// the high-contrast gate's log lines.
+const wcagAAA = 7.0
+
+// wcagAAAVerdict renders a WCAG AAA pass/fail for those log lines.
+func wcagAAAVerdict(ratio float64) string {
+	if ratio >= wcagAAA {
+		return "pass"
+	}
+	return "fail"
 }
