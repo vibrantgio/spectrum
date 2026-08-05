@@ -38,9 +38,9 @@ func TestDarwinAccentThrottledBelowDark(t *testing.T) {
 	src := &darwinSource{
 		accentInterval: 10 * time.Second,
 		now:            func() time.Time { return clock },
-		readAccentFn: func() int {
+		readAccentFn: func() Accent {
 			accentReads++
-			return 7
+			return AccentGraphite
 		},
 	}
 
@@ -53,8 +53,8 @@ func TestDarwinAccentThrottledBelowDark(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Read() %d: %v", i, err)
 		}
-		if a.AccentIndex != 7 {
-			t.Fatalf("Read() %d: AccentIndex=%d; want 7 (cached or fresh)", i, a.AccentIndex)
+		if a.Accent != AccentGraphite {
+			t.Fatalf("Read() %d: Accent=%d; want AccentGraphite (cached or fresh)", i, a.Accent)
 		}
 		clock = clock.Add(time.Second)
 	}
@@ -78,9 +78,9 @@ func TestDarwinAccentReadOnFirstCall(t *testing.T) {
 	src := &darwinSource{
 		accentInterval: 10 * time.Second,
 		now:            func() time.Time { return clock },
-		readAccentFn: func() int {
+		readAccentFn: func() Accent {
 			accentReads++
-			return 3
+			return AccentGreen
 		},
 	}
 	a, err := src.Read()
@@ -90,8 +90,8 @@ func TestDarwinAccentReadOnFirstCall(t *testing.T) {
 	if accentReads != 1 {
 		t.Fatalf("first Read() performed %d accent reads; want exactly 1", accentReads)
 	}
-	if a.AccentIndex != 3 {
-		t.Errorf("first Read() AccentIndex=%d; want 3", a.AccentIndex)
+	if a.Accent != AccentGreen {
+		t.Errorf("first Read() Accent=%d; want AccentGreen", a.Accent)
 	}
 }
 
@@ -99,25 +99,25 @@ func TestDarwinAccentReadOnFirstCall(t *testing.T) {
 // interval has elapsed, so a genuine accent change is eventually observed.
 func TestDarwinAccentRefreshesAfterInterval(t *testing.T) {
 	var clock time.Time
-	value := 1
+	value := AccentOrange
 	src := &darwinSource{
 		accentInterval: 10 * time.Second,
 		now:            func() time.Time { return clock },
-		readAccentFn:   func() int { return value },
+		readAccentFn:   func() Accent { return value },
 	}
 
-	if a, _ := src.Read(); a.AccentIndex != 1 {
-		t.Fatalf("initial accent=%d; want 1", a.AccentIndex)
+	if a, _ := src.Read(); a.Accent != AccentOrange {
+		t.Fatalf("initial accent=%d; want AccentOrange", a.Accent)
 	}
 	// Change the underlying value; before the interval elapses the cache holds.
-	value = 5
+	value = AccentPurple
 	clock = clock.Add(9 * time.Second)
-	if a, _ := src.Read(); a.AccentIndex != 1 {
-		t.Errorf("accent before interval=%d; want cached 1", a.AccentIndex)
+	if a, _ := src.Read(); a.Accent != AccentOrange {
+		t.Errorf("accent before interval=%d; want cached AccentOrange", a.Accent)
 	}
 	// After the interval, the new value is picked up.
 	clock = clock.Add(2 * time.Second) // total 11 s ≥ 10 s
-	if a, _ := src.Read(); a.AccentIndex != 5 {
-		t.Errorf("accent after interval=%d; want refreshed 5", a.AccentIndex)
+	if a, _ := src.Read(); a.Accent != AccentPurple {
+		t.Errorf("accent after interval=%d; want refreshed AccentPurple", a.Accent)
 	}
 }

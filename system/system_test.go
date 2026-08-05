@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/reactivego/rx"
-	"github.com/vibrantgio/spectrum/tokens"
 	"github.com/vibrantgio/spectrum/system"
+	"github.com/vibrantgio/spectrum/tokens"
 )
 
 // fakeSource returns successive values from vals on each Read call,
@@ -38,7 +38,7 @@ func collect[T any](obs rx.Observable[T]) ([]T, error) {
 }
 
 func TestFromSourceEmitsInitialValue(t *testing.T) {
-	want := system.Appearance{Dark: true, AccentIndex: 4}
+	want := system.Appearance{Dark: true, Accent: system.AccentBlue}
 	src := &fakeSource{vals: []system.Appearance{want}}
 
 	got, err := collect(system.FromSource(src, time.Hour).Take(1))
@@ -91,8 +91,8 @@ func TestFromSourceDeduplicates(t *testing.T) {
 }
 
 func TestFromSourceEmitsOnAccentChange(t *testing.T) {
-	a := system.Appearance{AccentIndex: 4}
-	b := system.Appearance{AccentIndex: 0}
+	a := system.Appearance{Accent: system.AccentBlue}
+	b := system.Appearance{Accent: system.AccentRed}
 	src := &fakeSource{vals: []system.Appearance{a, b}}
 
 	got, err := collect(system.FromSource(src, time.Millisecond).Take(2))
@@ -102,7 +102,7 @@ func TestFromSourceEmitsOnAccentChange(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("expected 2 emissions, got %d", len(got))
 	}
-	if got[0].AccentIndex != 4 || got[1].AccentIndex != 0 {
+	if got[0].Accent != system.AccentBlue || got[1].Accent != system.AccentRed {
 		t.Errorf("accent transitions wrong: %+v then %+v", got[0], got[1])
 	}
 }
@@ -225,6 +225,148 @@ func TestFromSourceThemeSeedSurvivesLightToDark(t *testing.T) {
 	}
 	if darkColors[0] == tokens.DefaultDark {
 		t.Error("dark emission fell back to DefaultDark; the custom seed was lost")
+	}
+}
+
+// accentCases pins the accent → seed table independently of the
+// implementation: literal Apple HIG system-colour sRGB values, so a silent
+// edit to the package's own table fails here. AccentDefault expects the
+// default palette (no accent override).
+var accentCases = []struct {
+	name   string
+	accent system.Accent
+	seed   color.NRGBA
+}{
+	{"default", system.AccentDefault, tokens.DefaultSeed},
+	{"red", system.AccentRed, color.NRGBA{R: 0xFF, G: 0x3B, B: 0x30, A: 0xFF}},
+	{"orange", system.AccentOrange, color.NRGBA{R: 0xFF, G: 0x95, B: 0x00, A: 0xFF}},
+	{"yellow", system.AccentYellow, color.NRGBA{R: 0xFF, G: 0xCC, B: 0x00, A: 0xFF}},
+	{"green", system.AccentGreen, color.NRGBA{R: 0x28, G: 0xCD, B: 0x41, A: 0xFF}},
+	{"blue", system.AccentBlue, color.NRGBA{R: 0x00, G: 0x7A, B: 0xFF, A: 0xFF}},
+	{"purple", system.AccentPurple, color.NRGBA{R: 0xAF, G: 0x52, B: 0xDE, A: 0xFF}},
+	{"pink", system.AccentPink, color.NRGBA{R: 0xFF, G: 0x2D, B: 0x55, A: 0xFF}},
+	{"graphite", system.AccentGraphite, color.NRGBA{R: 0x8E, G: 0x8E, B: 0x93, A: 0xFF}},
+}
+
+func TestFromSourceThemeFollowsEachAccent(t *testing.T) {
+	for _, tc := range accentCases {
+		t.Run(tc.name, func(t *testing.T) {
+			src := &fakeSource{vals: []system.Appearance{{Dark: false, Accent: tc.accent}}}
+			wantLight, _ := tokens.FromSeed(tc.seed)
+			if tc.accent == system.AccentDefault {
+				wantLight = tokens.DefaultLight
+			}
+
+			themes, err := collect(system.FromSourceTheme(src, time.Hour).Take(1))
+			if err != nil {
+				t.Fatalf("theme observe: %v", err)
+			}
+			if len(themes) != 1 {
+				t.Fatalf("expected 1 theme, got %d", len(themes))
+			}
+			colors, err := collect(themes[0].Color)
+			if err != nil {
+				t.Fatalf("color observe: %v", err)
+			}
+			if len(colors) != 1 || colors[0] != wantLight {
+				t.Fatalf("accent %s: light palette is not FromSeed of its seed", tc.name)
+			}
+			// ADR-007: the light primary base pins the seed byte-exact, so
+			// an accented button matches the OS accent colour exactly.
+			if colors[0].Primary != tc.seed {
+				t.Errorf("accent %s: light Primary = %+v, want the seed %+v", tc.name, colors[0].Primary, tc.seed)
+			}
+		})
+	}
+}
+
+func TestFromSourceThemeReemitsOnAccentChange(t *testing.T) {
+	blue := system.Appearance{Dark: false, Accent: system.AccentBlue}
+	red := system.Appearance{Dark: false, Accent: system.AccentRed}
+	src := &fakeSource{vals: []system.Appearance{blue, red}}
+
+	themes, err := collect(system.FromSourceTheme(src, time.Millisecond).Take(2))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	if len(themes) != 2 {
+		t.Fatalf("expected 2 themes (accent change, same mode), got %d", len(themes))
+	}
+	wantPins := []color.NRGBA{
+		{R: 0x00, G: 0x7A, B: 0xFF, A: 0xFF}, // systemBlue
+		{R: 0xFF, G: 0x3B, B: 0x30, A: 0xFF}, // systemRed
+	}
+	for i, want := range wantPins {
+		colors, err := collect(themes[i].Color)
+		if err != nil {
+			t.Fatalf("theme[%d] color observe: %v", i, err)
+		}
+		if len(colors) != 1 || colors[0].Primary != want {
+			t.Errorf("theme[%d] Primary = %+v, want %+v", i, colors[0].Primary, want)
+		}
+	}
+}
+
+func TestFromSourceThemeWithSeedBeatsAccent(t *testing.T) {
+	src := &fakeSource{vals: []system.Appearance{{Dark: false, Accent: system.AccentRed}}}
+	wantLight, _ := tokens.FromSeed(customSeed)
+
+	themes, err := collect(system.FromSourceTheme(src, time.Hour, system.WithSeed(customSeed)).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != wantLight {
+		t.Fatalf("WithSeed must beat the OS accent; got a different palette")
+	}
+	if colors[0].Primary != customSeed {
+		t.Errorf("Primary = %+v, want the app's own seed %+v (not the accent)", colors[0].Primary, customSeed)
+	}
+}
+
+func TestFromSourceThemeWithPaletteBeatsAccent(t *testing.T) {
+	src := &fakeSource{vals: []system.Appearance{{Dark: false, Accent: system.AccentGreen}}}
+	customLight, customDark := tokens.FromSeed(customSeed)
+
+	themes, err := collect(system.FromSourceTheme(src, time.Hour, system.WithPalette(customLight, customDark)).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != customLight {
+		t.Errorf("WithPalette must beat the OS accent; got a different palette")
+	}
+}
+
+func TestFromSourceThemeAccentSurvivesDarkMode(t *testing.T) {
+	purple := color.NRGBA{R: 0xAF, G: 0x52, B: 0xDE, A: 0xFF}
+	src := &fakeSource{vals: []system.Appearance{{Dark: true, Accent: system.AccentPurple}}}
+	_, wantDark := tokens.FromSeed(purple)
+
+	themes, err := collect(system.FromSourceTheme(src, time.Hour).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != wantDark {
+		t.Fatalf("dark accent palette is not the accent seed's dark set")
+	}
+	// The dark Primary is the accent's dark re-tone (ADR-007's dark pin),
+	// not the default dark and not the raw seed.
+	if colors[0].Primary != wantDark.Primary {
+		t.Errorf("dark Primary = %+v, want the accent's dark pin %+v", colors[0].Primary, wantDark.Primary)
+	}
+	if colors[0] == tokens.DefaultDark {
+		t.Error("dark emission fell back to DefaultDark; the accent was lost")
 	}
 }
 

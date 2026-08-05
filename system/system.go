@@ -29,13 +29,17 @@
 //
 // Errors are invisible by design: a failing Read is folded into the zero
 // Appearance rather than an error emission, so a broken source is
-// indistinguishable from light mode with no accent. AccentIndex is
-// likewise carried but never used — LiveTheme maps only Dark onto a
-// palette, and mapping the accent to colours is a later milestone.
+// indistinguishable from light mode with no accent. The accent is not just
+// carried: with no palette option, LiveTheme follows it — each [Accent]
+// maps to Apple's published seed colour and the emitted palette is
+// tokens.FromSeed of that seed, derived once per accent value and cached.
+// An explicit [WithSeed] or [WithPalette] beats the OS accent: the app
+// chose its brand, so the accent is ignored entirely.
 package system
 
 import (
 	"image/color"
+	"sync"
 	"time"
 
 	"github.com/reactivego/rx"
@@ -49,12 +53,13 @@ type Appearance struct {
 	// Dark is true iff the OS reports a dark interface style.
 	Dark bool
 
-	// AccentIndex carries a platform-defined accent identifier. On macOS
-	// it is the AppleAccentColor key (-1..7, where -1 means "multicolor"
-	// and 4 is the default Blue); on platforms that expose no equivalent
-	// it is zero. The mapping from index to a tokens.* colour belongs to
-	// later milestones.
-	AccentIndex int
+	// Accent is the OS accent colour, normalized to this package's
+	// [Accent] enum. On macOS the darwin shim maps the raw
+	// AppleAccentColor key (-1 graphite, 0..6 red through pink, absent =
+	// multicolour) onto it; platforms without an accent source report the
+	// zero value. The zero value, AccentDefault, means "no accent
+	// override", so the zero Appearance keeps the theme's own palette.
+	Accent Accent
 }
 
 // Source reads the current OS appearance state.
@@ -88,23 +93,38 @@ func Live(interval time.Duration) rx.Observable[Appearance] {
 }
 
 // Option customizes the palette pair a theme stream flips between. The
-// default — no options — is tokens.DefaultLight/DefaultDark, exactly the
-// pre-option behaviour. Options choose which light/dark pair is emitted;
+// default — no options — is tokens.DefaultLight/DefaultDark, except that
+// with no option the stream also follows the OS accent: a non-default
+// [Accent] swaps in tokens.FromSeed of that accent's seed colour. Giving
+// any palette option pins the pair — the app chose its brand, so the OS
+// accent is ignored. Options choose which light/dark pair is emitted;
 // they never affect when emissions happen, so OS dark-mode tracking keeps
 // working with a branded palette.
 type Option func(*palette)
 
-// palette is the light/dark pair an Appearance flips between.
+// palette is the light/dark pair an Appearance flips between. When pinned
+// is false (no palette option given) a non-default Appearance.Accent
+// overrides the pair with the accent seed's derived pair; byAccent caches
+// those derivations so tokens.FromSeed runs once per distinct accent
+// value, not once per emission.
 type palette struct {
+	light, dark tokens.ColorTokens
+	pinned      bool // an explicit option chose the pair; ignore the OS accent
+
+	mu       sync.Mutex
+	byAccent map[Accent]colorPair
+}
+
+type colorPair struct {
 	light, dark tokens.ColorTokens
 }
 
 // newPalette applies opts over the default pair. When several palette
 // options are given, the last one wins.
-func newPalette(opts []Option) palette {
-	p := palette{light: tokens.DefaultLight, dark: tokens.DefaultDark}
+func newPalette(opts []Option) *palette {
+	p := &palette{light: tokens.DefaultLight, dark: tokens.DefaultDark}
 	for _, opt := range opts {
-		opt(&p)
+		opt(p)
 	}
 	return p
 }
@@ -112,32 +132,40 @@ func newPalette(opts []Option) palette {
 // WithSeed derives the light/dark pair from one brand colour via
 // tokens.FromSeed (derived once, up front — not per emission). The light
 // primary is the seed byte-for-byte; everything else is generated per
-// ADR-007. An OS accent colour is just such a seed, which is how
-// accent-driven palettes will plug in.
+// ADR-007. The pair is pinned: a stream given WithSeed ignores the OS
+// accent colour.
 func WithSeed(seed color.NRGBA) Option {
 	return func(p *palette) {
 		p.light, p.dark = tokens.FromSeed(seed)
+		p.pinned = true
 	}
 }
 
 // WithPalette supplies both modes explicitly, for callers that need full
 // control beyond what a seed derives. The appearance stream still decides
-// which of the two is live.
+// which of the two is live. The pair is pinned: a stream given
+// WithPalette ignores the OS accent colour.
 func WithPalette(light, dark tokens.ColorTokens) Option {
 	return func(p *palette) {
 		p.light, p.dark = light, dark
+		p.pinned = true
 	}
 }
 
 // LiveTheme bridges system-appearance changes to a theme.Theme stream.
 // Each emission is a fresh theme.Theme whose Color field matches the OS
-// dark-mode setting — by default tokens.DefaultLight or tokens.DefaultDark,
-// or the injected pair when [WithSeed] or [WithPalette] is given; the
-// remaining token categories use their package defaults.
+// dark-mode setting; the remaining token categories use their package
+// defaults.
 //
-// Accent-driven palette swaps are intentionally out of scope here — the
-// AccentIndex is observed and propagated, but mapping it to a WithSeed
-// palette belongs to a later spectrum milestone.
+// Which light/dark pair flips is decided by precedence: an explicit
+// [WithSeed] or [WithPalette] wins outright — the app chose its brand, and
+// the OS accent is ignored. With no palette option the stream follows the
+// OS accent live: a non-default [Accent] emits tokens.FromSeed of the
+// accent's seed colour (Apple's published system colour — the light
+// primary is that seed byte-for-byte per ADR-007), and AccentDefault —
+// multicolour, unset, or a platform without an accent — emits
+// tokens.DefaultLight/DefaultDark. An accent change re-emits the theme
+// with the new pair; each pair is derived once per accent value and cached.
 func LiveTheme(interval time.Duration, opts ...Option) rx.Observable[theme.Theme] {
 	return rx.Map(Live(interval), newPalette(opts).theme)
 }
@@ -149,10 +177,11 @@ func FromSourceTheme(src Source, interval time.Duration, opts ...Option) rx.Obse
 	return rx.Map(FromSource(src, interval), newPalette(opts).theme)
 }
 
-func (p palette) theme(a Appearance) theme.Theme {
-	colors := p.light
+func (p *palette) theme(a Appearance) theme.Theme {
+	light, dark := p.pair(a.Accent)
+	colors := light
 	if a.Dark {
-		colors = p.dark
+		colors = dark
 	}
 	return theme.Theme{
 		Color:      rx.Of(colors),
@@ -163,4 +192,32 @@ func (p palette) theme(a Appearance) theme.Theme {
 		Radius:     rx.Of(tokens.Radius),
 		Elevation:  rx.Of(tokens.Elevation),
 	}
+}
+
+// pair resolves the light/dark pair for an accent, applying the precedence
+// rule: a pinned palette (explicit WithSeed/WithPalette) always wins; then
+// a non-default accent yields its seed's derived pair; AccentDefault (and
+// any unknown value) falls back to the palette's own pair. Derived pairs
+// are cached per accent value — tokens.FromSeed runs on first sight of an
+// accent, not on every emission. The mutex covers concurrent subscriptions
+// to one observable, which share this palette.
+func (p *palette) pair(a Accent) (light, dark tokens.ColorTokens) {
+	if p.pinned {
+		return p.light, p.dark
+	}
+	seed, ok := a.Seed()
+	if !ok {
+		return p.light, p.dark
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if c, ok := p.byAccent[a]; ok {
+		return c.light, c.dark
+	}
+	l, d := tokens.FromSeed(seed)
+	if p.byAccent == nil {
+		p.byAccent = make(map[Accent]colorPair)
+	}
+	p.byAccent[a] = colorPair{light: l, dark: d}
+	return l, d
 }

@@ -20,17 +20,18 @@ import (
 // Cost split (GX.11): each `defaults` call is a fork+exec — measured ~5.5 ms
 // each, so the original two-exec Read() was ~11 ms, i.e. ~1.1% CPU at a 1 s
 // poll. Dark mode (AppleInterfaceStyle) is the signal a UI must track promptly,
-// so it execs on every Read(). The accent (AppleAccentColor) changes rarely and
-// no consumer yet maps it to a colour, so it is re-read at most once per
-// accentInterval and otherwise served from cache — halving steady-state exec
-// cost without a CGO notification bridge.
+// so it execs on every Read(). The accent (AppleAccentColor) changes rarely, so
+// it is re-read at most once per accentInterval and otherwise served from
+// cache — halving steady-state exec cost without a CGO notification bridge.
+// A worst-case accent change therefore reaches the theme within
+// accentInterval plus one poll, not within one poll.
 type darwinSource struct {
 	accentInterval time.Duration
 	now            func() time.Time // injectable clock for tests
-	readAccentFn   func() int       // injectable accent reader for tests
+	readAccentFn   func() Accent    // injectable accent reader for tests
 
 	mu         sync.Mutex
-	accent     int
+	accent     Accent
 	accentRead bool      // whether accent has ever been read
 	accentAt   time.Time // when accent was last read
 }
@@ -45,15 +46,15 @@ func newDarwinSource() *darwinSource {
 
 func (s *darwinSource) Read() (Appearance, error) {
 	return Appearance{
-		Dark:        readDark(),
-		AccentIndex: s.readAccentThrottled(),
+		Dark:   readDark(),
+		Accent: s.readAccentThrottled(),
 	}, nil
 }
 
 // readAccentThrottled execs `defaults read -g AppleAccentColor` at most once
 // per accentInterval, serving the cached value in between. The first Read()
 // always performs the exec so the initial Appearance is accurate.
-func (s *darwinSource) readAccentThrottled() int {
+func (s *darwinSource) readAccentThrottled() Accent {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := s.now()
@@ -82,20 +83,54 @@ func readDark() bool {
 	return strings.TrimSpace(string(out)) == "Dark"
 }
 
-// readAccent returns the AppleAccentColor key as an integer (-1..7).
-// Zero is returned both when the key is missing and when parsing fails;
-// callers that need to distinguish "explicit zero" from "absent" should
-// not rely on AccentIndex alone.
-func readAccent() int {
+// readAccent reads the AppleAccentColor key and maps it onto the Accent
+// enum. A missing key means the user never chose an accent — macOS's
+// multicolour default — and folds to AccentDefault, as does a parse
+// failure. (An earlier revision returned the raw integer with zero for
+// "absent", which conflated "absent" with red; the enum's zero value now
+// carries the "no accent" meaning unambiguously.)
+func readAccent() Accent {
 	out, err := exec.Command("defaults", "read", "-g", "AppleAccentColor").Output()
 	if err != nil {
-		return 0
+		return AccentDefault
 	}
 	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
 	if err != nil {
-		return 0
+		return AccentDefault
 	}
-	return n
+	return accentFromIndex(n)
+}
+
+// accentFromIndex maps the raw AppleAccentColor integer onto the Accent
+// enum, per the mapping macOS has used since accent colours appeared in
+// 10.14 (and unchanged through the multicolour default Big Sur added,
+// which is the absent key, handled in readAccent):
+//
+//	-1 graphite · 0 red · 1 orange · 2 yellow · 3 green · 4 blue ·
+//	5 purple · 6 pink
+//
+// Any value outside that range — nothing ships one today — folds to
+// AccentDefault rather than guessing.
+func accentFromIndex(n int) Accent {
+	switch n {
+	case -1:
+		return AccentGraphite
+	case 0:
+		return AccentRed
+	case 1:
+		return AccentOrange
+	case 2:
+		return AccentYellow
+	case 3:
+		return AccentGreen
+	case 4:
+		return AccentBlue
+	case 5:
+		return AccentPurple
+	case 6:
+		return AccentPink
+	}
+	return AccentDefault
 }
 
 func defaultSource() Source { return newDarwinSource() }
