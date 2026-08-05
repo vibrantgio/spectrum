@@ -1,6 +1,9 @@
 package tokens
 
-import "image/color"
+import (
+	"fmt"
+	"image/color"
+)
 
 // ColorScale holds the eleven Tailwind shade stops for one hue family (50–950).
 type ColorScale struct {
@@ -52,55 +55,153 @@ var (
 	White = color.NRGBA{0xff, 0xff, 0xff, 0xff}
 )
 
-// ColorTokens holds the semantic foreground/background token pairs consumed by
-// every Prism component. Each "On" field is the recommended text/icon colour
-// rendered on top of its companion field.
+// Ramp is one colour role's nine-step functional ramp per ADR-007. Steps run
+// 100–900 in hundreds and the step number carries the meaning: 100–300 are
+// tinted fills, hovers and subtle borders, 500 is the mid-value reference,
+// 700–900 are text over tinted fills and pressed states. Index i holds step
+// (i+1)*100; use Step to address a ramp by its step number.
+//
+// Light and dark ramps are paired scales, not two role tables: the same step
+// keeps the same job in both modes, so a component asking for neutral 200
+// gets a light card on a light ground and a dark card on a dark one.
+type Ramp [9]color.NRGBA
+
+// Step returns the colour at step n, where n is one of 100, 200, … 900.
+// Any other n is a programming error and panics.
+func (r Ramp) Step(n int) color.NRGBA {
+	if n < 100 || n > 900 || n%100 != 0 {
+		panic(fmt.Sprintf("tokens: Ramp.Step(%d): step must be 100–900 in hundreds", n))
+	}
+	return r[n/100-1]
+}
+
+// RampSet holds the five colour-role ramps ADR-007 defines. Neutral carries
+// every surface, border and text shade; the accent ramps carry each role's
+// tints and text shades, while the role's base colour is pinned separately
+// on ColorTokens (see ColorTokens.Primary).
+type RampSet struct {
+	Neutral   Ramp
+	Primary   Ramp
+	Secondary Ramp
+	Tertiary  Ramp
+	Error     Ramp
+}
+
+// ColorTokens holds the colour vocabulary consumed by every Prism component:
+// ADR-007's nine-step functional ramps, the pinned role bases, and a thin
+// semantic layer resolved from ramp steps. Each "On" field is the recommended
+// text/icon colour rendered on top of its companion pinned base.
+//
+// The pinned bases exist because a brand seed rarely sits on the shared
+// lightness scale: the pin reproduces the role's base colour exactly instead
+// of reading a lightened approximation off a ramp step. Dark mode pins a
+// dark-appropriate base rather than reusing the light pin.
+//
+// The MD3-only field names survive as deprecated aliases, resolved from ramp
+// steps at construction, until F3.3 deletes the shims.
 type ColorTokens struct {
-	Background       color.NRGBA
-	OnBackground     color.NRGBA
-	Surface          color.NRGBA
-	OnSurface        color.NRGBA
-	SurfaceVariant   color.NRGBA
+	// Ramps holds the functional ramps. In DefaultLight and DefaultDark only
+	// the Neutral steps the aliases below resolve from are populated; the
+	// remaining steps and the accent ramps stay zero until D2.2 derives full
+	// paired ramps from a seed.
+	Ramps RampSet
+
+	// Pinned accent bases and their on-colours (ADR-007 "solid fill").
+	Primary     color.NRGBA // pinned primary base
+	OnPrimary   color.NRGBA // text/icon over Primary
+	Secondary   color.NRGBA // pinned secondary base
+	OnSecondary color.NRGBA // text/icon over Secondary
+	Tertiary    color.NRGBA // pinned tertiary base; zero until D2.2 generates it
+	OnTertiary  color.NRGBA // text/icon over Tertiary; zero until D2.2
+	Error       color.NRGBA // pinned error base
+	OnError     color.NRGBA // text/icon over Error
+
+	// The thin semantic layer (ADR-007's surface mapping). Background and
+	// Text are pins — the "bg" and "text" bases E0.1 emits — while Surface
+	// and Divider resolve from Neutral ramp steps at construction.
+	Background color.NRGBA // pinned app background
+	Text       color.NRGBA // pinned body text over Background
+	Surface    color.NRGBA // card / raised surface — Ramps.Neutral.Step(200)
+	Divider    color.NRGBA // subtle border, separator — Ramps.Neutral.Step(300)
+
+	// Deprecated: alias of Text; deleted in F3.3.
+	OnBackground color.NRGBA
+	// Deprecated: alias of Ramps.Neutral.Step(900), the body-text step;
+	// deleted in F3.3.
+	OnSurface color.NRGBA
+	// Deprecated: alias of Ramps.Neutral.Step(300), the hovered/tinted
+	// surface step; deleted in F3.3.
+	SurfaceVariant color.NRGBA
+	// Deprecated: alias of Ramps.Neutral.Step(700), the low-contrast text
+	// step; deleted in F3.3.
 	OnSurfaceVariant color.NRGBA
-	Primary          color.NRGBA
-	OnPrimary        color.NRGBA
-	Secondary        color.NRGBA
-	OnSecondary      color.NRGBA
-	Error            color.NRGBA
-	OnError          color.NRGBA
-	Outline          color.NRGBA // border/divider; no "On" counterpart
+	// Deprecated: alias of Ramps.Neutral.Step(500), the strong border step;
+	// deleted in F3.3. For separators use Divider.
+	Outline color.NRGBA
+}
+
+// resolveAliases fills every field defined as a resolution of a ramp step —
+// the semantic Surface and Divider, and the deprecated MD3 aliases — from
+// the ramps and pins already set on t, and returns the completed value.
+// Constructing tokens through it is what keeps each alias byte-identical to
+// its documented resolution; D2.2's seed generator reuses it.
+func resolveAliases(t ColorTokens) ColorTokens {
+	t.Surface = t.Ramps.Neutral.Step(200)
+	t.Divider = t.Ramps.Neutral.Step(300)
+	t.OnBackground = t.Text
+	t.OnSurface = t.Ramps.Neutral.Step(900)
+	t.SurfaceVariant = t.Ramps.Neutral.Step(300)
+	t.OnSurfaceVariant = t.Ramps.Neutral.Step(700)
+	t.Outline = t.Ramps.Neutral.Step(500)
+	return t
 }
 
 // DefaultLight is the canonical light-mode colour token set.
-var DefaultLight = ColorTokens{
-	Background:       White,
-	OnBackground:     Slate.C900,
-	Surface:          Slate.C50,
-	OnSurface:        Slate.C900,
-	SurfaceVariant:   Slate.C100,
-	OnSurfaceVariant: Slate.C700,
-	Primary:          Blue.C700,
-	OnPrimary:        White,
-	Secondary:        Slate.C600,
-	OnSecondary:      White,
-	Error:            Red.C700,
-	OnError:          White,
-	Outline:          Slate.C300,
-}
+//
+// Every pre-ADR-007 field keeps its exact former value: the Neutral steps
+// the aliases resolve from are pinned to those Tailwind stops, and the
+// unaliased steps, the accent ramps and the Tertiary pin stay zero until
+// D2.2 replaces the whole set with ramps derived from a seed.
+var DefaultLight = resolveAliases(ColorTokens{
+	Ramps: RampSet{
+		Neutral: Ramp{
+			1: Slate.C50,  // 200 — card / raised surface
+			2: Slate.C100, // 300 — hover, tinted surface, separator
+			4: Slate.C300, // 500 — strong border
+			6: Slate.C700, // 700 — low-contrast text
+			8: Slate.C900, // 900 — body / high-contrast text
+		},
+	},
+	Primary:     Blue.C700,
+	OnPrimary:   White,
+	Secondary:   Slate.C600,
+	OnSecondary: White,
+	Error:       Red.C700,
+	OnError:     White,
+	Background:  White,
+	Text:        Slate.C900,
+})
 
-// DefaultDark is the canonical dark-mode colour token set.
-var DefaultDark = ColorTokens{
-	Background:       Slate.C950,
-	OnBackground:     Slate.C50,
-	Surface:          Slate.C900,
-	OnSurface:        Slate.C100,
-	SurfaceVariant:   Slate.C800,
-	OnSurfaceVariant: Slate.C300,
-	Primary:          Blue.C400,
-	OnPrimary:        Slate.C900,
-	Secondary:        Slate.C400,
-	OnSecondary:      Slate.C900,
-	Error:            Red.C400,
-	OnError:          Slate.C900,
-	Outline:          Slate.C700,
-}
+// DefaultDark is the canonical dark-mode colour token set. Its Neutral ramp
+// is DefaultLight's paired scale — the same step keeps the same job — and
+// its pins are the dark-appropriate bases. See DefaultLight for how the
+// ramps are populated until D2.2.
+var DefaultDark = resolveAliases(ColorTokens{
+	Ramps: RampSet{
+		Neutral: Ramp{
+			1: Slate.C900, // 200 — card / raised surface
+			2: Slate.C800, // 300 — hover, tinted surface, separator
+			4: Slate.C700, // 500 — strong border
+			6: Slate.C300, // 700 — low-contrast text
+			8: Slate.C100, // 900 — body / high-contrast text
+		},
+	},
+	Primary:     Blue.C400,
+	OnPrimary:   Slate.C900,
+	Secondary:   Slate.C400,
+	OnSecondary: Slate.C900,
+	Error:       Red.C400,
+	OnError:     Slate.C900,
+	Background:  Slate.C950,
+	Text:        Slate.C50,
+})
