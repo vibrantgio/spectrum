@@ -7,8 +7,8 @@ require (
 	github.com/reactivego/rx v0.3.0
 	github.com/vibrantgio/font v0.0.4
 	github.com/vibrantgio/mvu v0.4.2
-	github.com/vibrantgio/prism v0.1.3
-	github.com/vibrantgio/pulse v0.0.7
+	github.com/vibrantgio/prism v0.1.5
+	github.com/vibrantgio/pulse v0.0.9
 	golang.org/x/image v0.44.0
 )
 
