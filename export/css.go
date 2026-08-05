@@ -5,6 +5,7 @@ import (
 	stdcolor "image/color"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/vibrantgio/spectrum/tokens"
 )
@@ -122,17 +123,56 @@ var radiusKeys = []struct {
 	{"full", func(r tokens.RadiusScale) float32 { return r.Full }},
 }
 
-// elevationLevels orders the elevation stops under their level numbers.
+// elevationLevels orders the elevation levels under their level numbers;
+// each level's surface step and shadow dp are read off the snapshot's
+// ElevationScale through its accessors.
 var elevationLevels = []struct {
-	name string
-	pick func(tokens.ElevationScale) float32
+	name  string
+	level tokens.ElevationLevel
 }{
-	{"0", func(e tokens.ElevationScale) float32 { return e.Level0 }},
-	{"1", func(e tokens.ElevationScale) float32 { return e.Level1 }},
-	{"2", func(e tokens.ElevationScale) float32 { return e.Level2 }},
-	{"3", func(e tokens.ElevationScale) float32 { return e.Level3 }},
-	{"4", func(e tokens.ElevationScale) float32 { return e.Level4 }},
-	{"5", func(e tokens.ElevationScale) float32 { return e.Level5 }},
+	{"0", tokens.Level0},
+	{"1", tokens.Level1},
+	{"2", tokens.Level2},
+	{"3", tokens.Level3},
+	{"4", tokens.Level4},
+	{"5", tokens.Level5},
+}
+
+// densityMetrics orders the per-setting density metrics under their CSS
+// names. The WCAG pointer-target floor is not here: it is not a per-setting
+// metric — see densityVars.
+var densityMetrics = []struct {
+	name string
+	pick func(tokens.Density) float32
+}{
+	{"control-height", func(d tokens.Density) float32 { return d.ControlHeight }},
+	{"padding-x", func(d tokens.Density) float32 { return d.PaddingX }},
+	{"padding-y", func(d tokens.Density) float32 { return d.PaddingY }},
+}
+
+// easeRoles orders the MD3 easing presets under their CSS names.
+var easeRoles = []struct {
+	name string
+	pick func(tokens.MotionScale) tokens.Bezier
+}{
+	{"standard", func(m tokens.MotionScale) tokens.Bezier { return m.EaseStandard }},
+	{"standard-accelerate", func(m tokens.MotionScale) tokens.Bezier { return m.EaseStandardAccelerate }},
+	{"standard-decelerate", func(m tokens.MotionScale) tokens.Bezier { return m.EaseStandardDecelerate }},
+	{"emphasized", func(m tokens.MotionScale) tokens.Bezier { return m.EaseEmphasized }},
+	{"emphasized-accelerate", func(m tokens.MotionScale) tokens.Bezier { return m.EaseEmphasizedAccelerate }},
+	{"emphasized-decelerate", func(m tokens.MotionScale) tokens.Bezier { return m.EaseEmphasizedDecelerate }},
+}
+
+// durationStops orders the duration stops under their CSS names.
+var durationStops = []struct {
+	name string
+	pick func(tokens.MotionScale) time.Duration
+}{
+	{"x-fast", func(m tokens.MotionScale) time.Duration { return m.DurXFast }},
+	{"fast", func(m tokens.MotionScale) time.Duration { return m.DurFast }},
+	{"normal", func(m tokens.MotionScale) time.Duration { return m.DurNormal }},
+	{"slow", func(m tokens.MotionScale) time.Duration { return m.DurSlow }},
+	{"x-slow", func(m tokens.MotionScale) time.Duration { return m.DurXSlow }},
 }
 
 // boxShadow approximates an elevation depth as a CSS box-shadow: y-offset
@@ -143,6 +183,31 @@ func boxShadow(dp float32) string {
 		return "none"
 	}
 	return fmt.Sprintf("0 %s %s 0 rgba(0, 0, 0, 0.2)", px(dp), px(2*dp))
+}
+
+// surfaceVarRef renders an elevation level's surface fill as a reference
+// into the colour families — var(--color-bg) for the step-0 sentinel (the
+// Background pin), var(--color-neutral-<step>) otherwise. Emitting a
+// reference rather than a resolved hex keeps --elevation-* mode-invariant:
+// the .dark block overrides the colour variables and every elevation
+// surface flips with them, which is exactly the tonal model (an elevation
+// level IS a neutral-ramp step).
+func surfaceVarRef(step int) string {
+	if step == 0 {
+		return "var(--color-bg)"
+	}
+	return fmt.Sprintf("var(--color-neutral-%d)", step)
+}
+
+// cubicBezier renders a Bezier as the CSS cubic-bezier() function.
+func cubicBezier(bz tokens.Bezier) string {
+	return fmt.Sprintf("cubic-bezier(%s, %s, %s, %s)",
+		fnum(bz.P1[0]), fnum(bz.P1[1]), fnum(bz.P2[0]), fnum(bz.P2[1]))
+}
+
+// ms formats a duration as CSS milliseconds.
+func ms(d time.Duration) string {
+	return strconv.FormatFloat(float64(d)/float64(time.Millisecond), 'f', -1, 64) + "ms"
 }
 
 // colorVars renders one colour scheme as its ramp and pin variables.
@@ -163,8 +228,10 @@ func colorVars(t tokens.ColorTokens) []cssVar {
 	return vars
 }
 
-// scaleVars renders the mode-invariant families: fonts, spacing, radius and
-// shadows.
+// scaleVars renders the mode-invariant families: fonts, density
+// (comfortable — the :root setting), spacing, radius, the tonal elevation
+// surfaces (the default cue), the dp shadows (the opt-in cue for floating
+// transients, per E2.2), and the motion set.
 func scaleVars(s Snapshot) []cssVar {
 	vars := []cssVar{{"--font-family", strconv.Quote(s.Typography.BodyLarge.Typeface)}}
 	for _, role := range typeRoles {
@@ -176,6 +243,8 @@ func scaleVars(s Snapshot) []cssVar {
 			cssVar{"--font-" + role.name + "-tracking", px(style.Tracking)},
 		)
 	}
+	vars = append(vars, densityVars(tokens.Comfortable)...)
+	vars = append(vars, cssVar{"--density-min-hit-target", px(tokens.Comfortable.MinHitTarget())})
 	for _, key := range spaceKeys {
 		vars = append(vars, cssVar{"--space-" + key.name, px(key.pick(s.Spacing))})
 	}
@@ -183,7 +252,30 @@ func scaleVars(s Snapshot) []cssVar {
 		vars = append(vars, cssVar{"--radius-" + key.name, px(key.pick(s.Radius))})
 	}
 	for _, level := range elevationLevels {
-		vars = append(vars, cssVar{"--shadow-" + level.name, boxShadow(level.pick(s.Elevation))})
+		vars = append(vars, cssVar{"--elevation-" + level.name, surfaceVarRef(s.Elevation.SurfaceStep(level.level))})
+	}
+	for _, level := range elevationLevels {
+		vars = append(vars, cssVar{"--shadow-" + level.name, boxShadow(s.Elevation.Dp(level.level))})
+	}
+	for _, role := range easeRoles {
+		vars = append(vars, cssVar{"--ease-" + role.name, cubicBezier(role.pick(s.Motion))})
+	}
+	for _, stop := range durationStops {
+		vars = append(vars, cssVar{"--duration-" + stop.name, ms(stop.pick(s.Motion))})
+	}
+	return vars
+}
+
+// densityVars renders one density setting's per-setting metrics. The :root
+// block carries tokens.Comfortable's; the .compact override block carries
+// tokens.Compact's. --density-min-hit-target is deliberately not among
+// them: the WCAG 2.5.5 pointer-target floor does not scale with density, so
+// it is emitted once in :root and never overridden — the CSS mirror of
+// Density.MinHitTarget being a method, not a field.
+func densityVars(d tokens.Density) []cssVar {
+	var vars []cssVar
+	for _, m := range densityMetrics {
+		vars = append(vars, cssVar{"--density-" + m.name, px(m.pick(d))})
 	}
 	return vars
 }
@@ -199,12 +291,18 @@ func block(b *strings.Builder, selector string, vars []cssVar) {
 }
 
 // stylesCSS renders the full token sheet: the light scheme and every
-// mode-invariant scale under :root, the paired dark colours under .dark.
+// mode-invariant scale under :root, the paired dark colours under .dark,
+// and the compact density metrics under .compact. The two class blocks are
+// orthogonal switches — .dark flips the colours (and with them the
+// var()-chained --elevation-* surfaces), .compact flips the per-setting
+// density metrics — so a surface can be any of the four combinations.
 func stylesCSS(s Snapshot) string {
 	var b strings.Builder
 	b.WriteString("/* Generated by spectrum/export (cmd/vg-tokens). Do not edit. */\n\n")
 	block(&b, ":root", append(colorVars(s.Light), scaleVars(s)...))
 	b.WriteString("\n")
 	block(&b, ".dark", colorVars(s.Dark))
+	b.WriteString("\n")
+	block(&b, ".compact", densityVars(tokens.Compact))
 	return b.String()
 }

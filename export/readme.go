@@ -30,15 +30,19 @@ func readmeMD(s Snapshot) string {
 
 	b.WriteString("## Files\n\n" +
 		"- `styles.css` — the token sheet: one `:root` block (light colours plus every\n" +
-		"  mode-invariant scale) and one `.dark` class override block (the paired dark\n" +
-		"  colours only). Add `class=\"dark\"` to the root element to switch modes.\n" +
+		"  mode-invariant scale, comfortable density), one `.dark` class override block\n" +
+		"  (the paired dark colours only) and one `.compact` class override block (the\n" +
+		"  compact density metrics only). Add `class=\"dark\"` to the root element to\n" +
+		"  switch modes, `class=\"compact\"` to any subtree to densify it; the two\n" +
+		"  switches are orthogonal.\n" +
 		"- `theme.json` — the generative parameters; see the reproducibility contract\n" +
 		"  below.\n" +
 		"- `foundations/color.html` — every ramp, pin, step purpose and measured\n" +
 		"  APCA Lc / WCAG ratio per text pair, in both modes.\n" +
 		"- `foundations/type.html` — every type role at its real metrics.\n" +
-		"- `foundations/layout.html` — the spacing, radius and elevation scales as\n" +
-		"  rendered specimens.\n\n" +
+		"- `foundations/layout.html` — the spacing scale, the control metrics at both\n" +
+		"  density settings, the radius scale and tonal elevation as rendered\n" +
+		"  specimens.\n\n" +
 		"Each page reads only from `styles.css` — every styled value is a `var(--…)`\n" +
 		"reference — and carries a light/dark toggle. Annotation numbers are printed for\n" +
 		"both modes, labelled `L` and `D`.\n\n")
@@ -59,9 +63,13 @@ func readmeMD(s Snapshot) string {
 		typeNames[i] = role.name
 	}
 	fmt.Fprintf(&b, "| `--font-<role>-*` | roles %s; each with `-size`, `-line-height`, `-weight`, `-tracking` | px sizes, CSS numeric weights |\n", strings.Join(typeNames, ", "))
+	fmt.Fprintf(&b, "| `--density-<metric>` | %s, `--density-min-hit-target` | control metrics, px; `:root` is comfortable, `.compact` overrides all but the hit-target floor |\n", joinTokens("--density-", densityNames()))
 	fmt.Fprintf(&b, "| `--space-<key>` | %s | the 4-pt spacing grid, px |\n", joinTokens("--space-", spaceNames()))
 	fmt.Fprintf(&b, "| `--radius-<key>` | %s | corner radii, Tailwind naming, px |\n", joinTokens("--radius-", radiusNames()))
-	fmt.Fprintf(&b, "| `--shadow-<level>` | %s | box-shadow elevation approximations; E2.1/E5.1 remap these to surface roles |\n\n", joinTokens("--shadow-", elevationNames()))
+	fmt.Fprintf(&b, "| `--elevation-<level>` | %s | tonal surface fills — the DEFAULT elevation cue; `var()` references into the neutral ramp (level 0 is the bg pin), so they flip with `.dark` |\n", joinTokens("--elevation-", elevationNames()))
+	fmt.Fprintf(&b, "| `--shadow-<level>` | %s | dp box-shadows — the OPT-IN cue for floating transients (menus, dialogs, tooltips) layered over the tonal fill; resting surfaces use the fill alone |\n", joinTokens("--shadow-", elevationNames()))
+	fmt.Fprintf(&b, "| `--ease-<name>` | %s | MD3 easing presets as `cubic-bezier()`; emphasized is the documented single-bezier stand-in for MD3's two-segment path |\n", joinTokens("--ease-", easeNames()))
+	fmt.Fprintf(&b, "| `--duration-<stop>` | %s | MD3-pinned duration stops, ms; the reduce-motion variant zeroes them |\n\n", joinTokens("--duration-", durationNames()))
 
 	b.WriteString("## Step purposes (ADR-007)\n\n" +
 		"| Step | Job |\n| --- | --- |\n" +
@@ -75,15 +83,46 @@ func readmeMD(s Snapshot) string {
 		"The pinned base — not a ramp step — is the solid fill; hover and pressed on a\n" +
 		"solid walk one and two steps from the pin toward 900.\n\n")
 
+	b.WriteString("## Elevation: default vs opt-in\n\n" +
+		"Elevation is tonal (E2.1): a raised surface separates from its ground by\n" +
+		"colour, one neutral-ramp step per storey — level 0 is the bg pin over the\n" +
+		"step-100 ground, levels 1–3 fill with neutral 200/300/400, and levels 4–5\n" +
+		"clamp to level 3's step (desktop has no six-storey stack). `--elevation-N`\n" +
+		"is that surface fill and the **default** cue; because the light and dark\n" +
+		"ramps are paired scales, the same level reads as raised in both modes with\n" +
+		"no mode-specific rule. The dp shadow is the **opt-in** secondary cue,\n" +
+		"reserved for floating transients — menus, dialogs, tooltips — which layer\n" +
+		"`--shadow-N` over their tonal fill (E2.2). Resting surfaces never cast one.\n\n")
+
+	b.WriteString("## Density\n\n" +
+		"Two published settings, one variable family: comfortable (36 dp controls,\n" +
+		"16/8 dp padding) is the `:root` default; compact (28 dp, 12/6 dp) is the\n" +
+		"`.compact` class override, scoping to any subtree the way `.dark` scopes\n" +
+		"colours. `--density-min-hit-target` (44 dp, WCAG 2.5.5) is deliberately not\n" +
+		"overridden: compact shrinks the drawn control, never the clickable area.\n" +
+		"`theme.json` records both settings' metrics plus which one the theme runs.\n\n")
+
+	b.WriteString("## Motion\n\n" +
+		"The MD3 easing presets are emitted as `cubic-bezier()` variables and the\n" +
+		"five duration stops in ms, each pinned to one MD3 duration role. The spring\n" +
+		"presets (default/snappy/gentle) are Go-side damped-oscillator physics with\n" +
+		"no CSS counterpart, so they live only in `theme.json`'s motion parameters.\n" +
+		"Under the OS reduce-motion preference the theme emits the same scale with\n" +
+		"every duration zeroed; the sheet is generated from the non-reduced scale.\n\n")
+
 	b.WriteString("## Reproducibility\n\n" +
 		"`theme.json` records the seed (hex plus its OKLCh hue and sat), the pinned role\n" +
-		"hexes per mode, the faces, the base radius and the measured lightness scales.\n" +
+		"hexes per mode, the faces, the base radius, the measured lightness scales, both\n" +
+		"density settings' metrics, the elevation model (surface steps and shadow dps\n" +
+		"per level) and the motion set (durations, easings, springs).\n" +
 		"`FromSeed(seed)` regenerates every ramp and pin from the seed alone — a\n" +
 		"round-trip test in `spectrum/export` asserts it — so the file, not this text,\n" +
 		"is the contract. To rebrand, rerun `vg-tokens -seed #rrggbb`; every page here\n" +
 		"reflows because nothing in them is hard-coded.\n\n" +
 		"Fonts: the tokens name " + s.Typography.BodyLarge.Typeface + "; the pages fall back to system faces when it\n" +
-		"is not installed. Density and the motion set are not exported yet (E5.1).\n")
+		"is not installed. An increased-contrast palette variant exists Go-side\n" +
+		"(`tokens.FromSeedHighContrast`, driven by the OS contrast preference); it is\n" +
+		"not part of this export.\n")
 
 	return b.String()
 }
@@ -110,6 +149,33 @@ func elevationNames() []string {
 	names := make([]string, len(elevationLevels))
 	for i, k := range elevationLevels {
 		names[i] = k.name
+	}
+	return names
+}
+
+// densityNames, easeNames and durationNames list the density metric, easing
+// preset and duration stop names in sheet order, for the readme's
+// enumerations.
+func densityNames() []string {
+	names := make([]string, len(densityMetrics))
+	for i, m := range densityMetrics {
+		names[i] = m.name
+	}
+	return names
+}
+
+func easeNames() []string {
+	names := make([]string, len(easeRoles))
+	for i, r := range easeRoles {
+		names[i] = r.name
+	}
+	return names
+}
+
+func durationNames() []string {
+	names := make([]string, len(durationStops))
+	for i, s := range durationStops {
+		names[i] = s.name
 	}
 	return names
 }

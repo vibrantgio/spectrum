@@ -9,10 +9,12 @@
 // # The token sheet
 //
 // styles.css carries one :root block (the light scheme plus every
-// mode-invariant scale) and one .dark override block (the paired dark
-// colours only). ADR-007 records the reference project's token families but
-// not its dark-mode selector, so the sheet uses a .dark class override —
-// chosen here, not ADR-recorded.
+// mode-invariant scale, comfortable density), one .dark override block (the
+// paired dark colours only) and one .compact override block (the compact
+// density metrics only). ADR-007 records the reference project's token
+// families but not its dark-mode selector, so the sheet uses class
+// overrides — chosen here, not ADR-recorded — and .compact follows the same
+// pattern; the two switches are orthogonal.
 //
 // Colour variables follow ADR-007's families exactly:
 //
@@ -32,16 +34,34 @@
 //   - --font-family, plus --font-<role>-size, -line-height, -weight and
 //     -tracking per type role (display-large … body-small): sizes, line
 //     heights and tracking in px, weights as CSS numeric weights.
+//   - --density-control-height, --density-padding-x and --density-padding-y
+//     from tokens.Density: :root carries tokens.Comfortable, the .compact
+//     block overrides with tokens.Compact. --density-min-hit-target is the
+//     WCAG 2.5.5 pointer-target floor, emitted once and never overridden —
+//     density scales the drawn control, never the clickable area.
 //   - --space-<key> from tokens.SpacingScale, keys as the Go scale names
 //     them (0, 1, 2, … 24), in px.
 //   - --radius-<key> from tokens.RadiusScale in Tailwind naming (none, sm,
 //     base, md, lg, xl, 2xl, 3xl, full), in px; Base is also theme.json's
 //     base radius parameter.
-//   - --shadow-<level> (0–5): CSS box-shadow approximations of
-//     tokens.ElevationScale. Each level's dp depth d becomes
+//   - --elevation-<level> (0–5): the tonal surface fills, the DEFAULT
+//     elevation cue (E2.1). Each level is emitted as a var() reference —
+//     var(--color-bg) for level 0's bg-pin sentinel, var(--color-neutral-N)
+//     for the ramp steps — so the surfaces flip with .dark through the
+//     colour overrides and the sheet itself states that an elevation level
+//     is a neutral-ramp step. Levels 4 and 5 clamp to level 3's step.
+//   - --shadow-<level> (0–5): CSS box-shadow approximations of the dp
+//     depths, the OPT-IN cue floating transients (menus, dialogs, tooltips)
+//     layer over their tonal fill (E2.2). Each level's dp depth d becomes
 //     "0 <d>px <2d>px 0 rgba(0, 0, 0, 0.2)" — y-offset the depth, blur
-//     twice it, no spread, black at 20% — and level 0 is "none". E2.1
-//     remaps elevation to surface roles and E5.1 re-emits it.
+//     twice it, no spread, black at 20% — and level 0 is "none".
+//   - --ease-<name> from tokens.MotionScale: the six MD3 easing presets as
+//     cubic-bezier() strings (standard and emphasized families, each plain
+//     / -accelerate / -decelerate).
+//   - --duration-<stop> (x-fast, fast, normal, slow, x-slow): the five
+//     MD3-pinned duration stops in ms. The spring presets have no CSS
+//     counterpart — springs are Go-side physics — and are serialised only
+//     in theme.json's motion parameters.
 //
 // # The foundation pages
 //
@@ -62,11 +82,12 @@
 //
 // theme.json records what reproduces the theme: the seed (hex plus its
 // OKLCh hue and sat), the pinned role hexes per mode, the heading and body
-// faces, the base radius, and the shared CIELAB L* scales measured back
-// from the emitted neutral ramps. tokens.FromSeed(seed) regenerates the
-// full palette from the seed alone — the round-trip test asserts it.
-// Density and the motion set are E5.1's; they are deliberately absent, as
-// is Theme.Motion from the sheet. Theme.Type is not consumed either: the
-// per-role --font-*-size tokens come from Typography, which carries the
-// same sizes.
+// faces, the base radius, the shared CIELAB L* scales measured back from
+// the emitted neutral ramps, the density model (the active setting by name,
+// both settings' metrics and the invariant hit-target floor), the elevation
+// model (surface step and shadow dp per level) and the motion set
+// (durations in ms, easing control points, spring presets).
+// tokens.FromSeed(seed) regenerates the full palette from the seed alone —
+// the round-trip test asserts it. Theme.Type is not consumed: the per-role
+// --font-*-size tokens come from Typography, which carries the same sizes.
 package export

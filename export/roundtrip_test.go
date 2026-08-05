@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/reactivego/rx"
 	"github.com/vibrantgio/spectrum/color"
@@ -187,7 +188,7 @@ func TestRoundTripScales(t *testing.T) {
 	}
 
 	for _, level := range elevationLevels {
-		name, dp := "--shadow-"+level.name, level.pick(snap.Elevation)
+		name, dp := "--shadow-"+level.name, snap.Elevation.Dp(level.level)
 		v := root[name]
 		if dp == 0 {
 			if v != "none" {
@@ -213,6 +214,134 @@ func TestRoundTripScales(t *testing.T) {
 		y, blur := wantPx(t, name, lengths[0]), wantPx(t, name, lengths[1])
 		if y != dp || blur != 2*dp {
 			t.Errorf("%s = %q: y %v blur %v, want dp %v and 2dp", name, v, y, blur, dp)
+		}
+	}
+}
+
+// TestRoundTripElevationSurfaces asserts the tonal --elevation-* variables
+// are var() references that resolve, per mode, to exactly the colour
+// SurfaceAt returns — the sheet's default elevation cue cannot drift from
+// the Go resolver.
+func TestRoundTripElevationSurfaces(t *testing.T) {
+	snap, sheet, _ := writeDefault(t)
+	root, dark := sheet[":root"], sheet[".dark"]
+
+	for _, level := range elevationLevels {
+		name := "--elevation-" + level.name
+
+		// Structurally: the reference the model dictates.
+		want := fmt.Sprintf("var(--color-neutral-%d)", snap.Elevation.SurfaceStep(level.level))
+		if snap.Elevation.SurfaceStep(level.level) == 0 {
+			want = "var(--color-bg)"
+		}
+		if got := root[name]; got != want {
+			t.Errorf("%s = %q, want %q", name, got, want)
+		}
+
+		// Resolved: chase the reference in each mode's variables and compare
+		// with SurfaceAt. Dark falls back to :root for anything .dark does
+		// not override, mirroring the cascade.
+		ref := strings.TrimSuffix(strings.TrimPrefix(root[name], "var("), ")")
+		if _, ok := root[ref]; !ok {
+			t.Fatalf("%s references %s, which :root does not declare", name, ref)
+		}
+		modes := []struct {
+			scheme tokens.ColorTokens
+			vars   map[string]string
+		}{{snap.Light, root}, {snap.Dark, dark}}
+		for i, mode := range modes {
+			hex, ok := mode.vars[ref]
+			if !ok {
+				hex = root[ref]
+			}
+			if want := wantHex(mode.scheme.SurfaceAt(level.level)); hex != want {
+				t.Errorf("%s (mode %d) resolves to %q, want SurfaceAt = %q", name, i, hex, want)
+			}
+		}
+	}
+}
+
+// TestRoundTripDensity asserts the density variables parse back to the Go
+// settings: :root carries tokens.Comfortable plus the invariant hit-target
+// floor, and the .compact block overrides exactly the three per-setting
+// metrics with tokens.Compact's — never the hit target.
+func TestRoundTripDensity(t *testing.T) {
+	_, sheet, _ := writeDefault(t)
+	root, compact := sheet[":root"], sheet[".compact"]
+	if compact == nil {
+		t.Fatalf("styles.css must carry a .compact block")
+	}
+
+	for _, m := range densityMetrics {
+		name := "--density-" + m.name
+		if got := wantPx(t, name, root[name]); got != m.pick(tokens.Comfortable) {
+			t.Errorf(":root %s = %v, want comfortable %v", name, got, m.pick(tokens.Comfortable))
+		}
+		if got := wantPx(t, name, compact[name]); got != m.pick(tokens.Compact) {
+			t.Errorf(".compact %s = %v, want compact %v", name, got, m.pick(tokens.Compact))
+		}
+	}
+	name := "--density-min-hit-target"
+	if got := wantPx(t, name, root[name]); got != tokens.MinHitTarget {
+		t.Errorf("%s = %v, want %v", name, got, tokens.MinHitTarget)
+	}
+
+	// The compact block carries exactly the per-setting overrides: every
+	// variable it declares exists in :root, is a --density-* metric, and the
+	// hit-target floor is not among them.
+	for n := range compact {
+		if _, ok := root[n]; !ok {
+			t.Errorf(".compact declares %s which :root does not", n)
+		}
+		if !strings.HasPrefix(n, "--density-") {
+			t.Errorf(".compact declares non-density variable %s", n)
+		}
+	}
+	if _, ok := compact[name]; ok {
+		t.Errorf(".compact overrides %s; the WCAG floor must not scale with density", name)
+	}
+	if want := len(densityMetrics); len(compact) != want {
+		t.Errorf(".compact declares %d variables, want %d", len(compact), want)
+	}
+}
+
+// TestRoundTripMotion asserts the easing variables parse back structurally
+// — cubic-bezier() with the Go control points — and the duration stops
+// numerically in ms.
+func TestRoundTripMotion(t *testing.T) {
+	snap, sheet, _ := writeDefault(t)
+	root := sheet[":root"]
+
+	for _, role := range easeRoles {
+		name := "--ease-" + role.name
+		// Parse into float32: the emitted decimals are shortest float32
+		// representations, so the round-trip contract is that they parse
+		// back to the exact float32 control points.
+		var p [4]float32
+		if _, err := fmt.Sscanf(root[name], "cubic-bezier(%f, %f, %f, %f)", &p[0], &p[1], &p[2], &p[3]); err != nil {
+			t.Errorf("%s = %q: not a cubic-bezier(): %v", name, root[name], err)
+			continue
+		}
+		bz := role.pick(snap.Motion)
+		if want := [4]float32{bz.P1[0], bz.P1[1], bz.P2[0], bz.P2[1]}; p != want {
+			t.Errorf("%s = %v, want control points %v", name, p, want)
+		}
+	}
+
+	for _, stop := range durationStops {
+		name := "--duration-" + stop.name
+		num, ok := strings.CutSuffix(root[name], "ms")
+		if !ok {
+			t.Errorf("%s = %q: not a ms duration", name, root[name])
+			continue
+		}
+		f, err := strconv.ParseFloat(num, 64)
+		if err != nil {
+			t.Errorf("%s = %q: %v", name, root[name], err)
+			continue
+		}
+		if want := float64(stop.pick(snap.Motion)) / 1e6; f != want {
+			t.Errorf("%s = %v ms, want %v ms", name, f, want)
 		}
 	}
 }
@@ -280,6 +409,99 @@ func TestThemeJSONReproduces(t *testing.T) {
 	if want := [9]int{8, 13, 19, 30, 65, 74, 82, 88, 94}; p.Scale.Dark != want {
 		t.Errorf("scale.dark = %v, want the paired dark scale %v", p.Scale.Dark, want)
 	}
+
+	// Density: the active setting by name, both published settings' metrics,
+	// and the invariant floor.
+	if p.Density.Setting != "comfortable" {
+		t.Errorf("density.setting = %q, want %q (theme.Default() emits tokens.Comfortable)", p.Density.Setting, "comfortable")
+	}
+	wantMetrics := func(label string, got DensityMetrics, d tokens.Density) {
+		want := DensityMetrics{
+			ControlHeight: float64(d.ControlHeight),
+			PaddingX:      float64(d.PaddingX),
+			PaddingY:      float64(d.PaddingY),
+		}
+		if got != want {
+			t.Errorf("density.%s = %+v, want %+v", label, got, want)
+		}
+	}
+	wantMetrics("comfortable", p.Density.Comfortable, tokens.Comfortable)
+	wantMetrics("compact", p.Density.Compact, tokens.Compact)
+	if p.Density.MinHitTarget != float64(tokens.MinHitTarget) {
+		t.Errorf("density.minHitTarget = %v, want %v", p.Density.MinHitTarget, tokens.MinHitTarget)
+	}
+
+	// Elevation: surface step and shadow dp per level, off the captured
+	// scale through the same accessors SurfaceAt uses.
+	for i, level := range elevationLevels {
+		if got, want := p.Elevation.SurfaceSteps[i], snap.Elevation.SurfaceStep(level.level); got != want {
+			t.Errorf("elevation.surfaceSteps[%d] = %d, want %d", i, got, want)
+		}
+		if got, want := p.Elevation.ShadowDp[i], float64(snap.Elevation.Dp(level.level)); got != want {
+			t.Errorf("elevation.shadowDp[%d] = %v, want %v", i, got, want)
+		}
+	}
+
+	// Motion: durations in ms, easing control points and springs must all
+	// reproduce the captured scale exactly (float64(float32) round-trips
+	// through JSON unchanged).
+	durs := []struct {
+		name string
+		got  float64
+		want time.Duration
+	}{
+		{"xFast", p.Motion.Durations.XFast, snap.Motion.DurXFast},
+		{"fast", p.Motion.Durations.Fast, snap.Motion.DurFast},
+		{"normal", p.Motion.Durations.Normal, snap.Motion.DurNormal},
+		{"slow", p.Motion.Durations.Slow, snap.Motion.DurSlow},
+		{"xSlow", p.Motion.Durations.XSlow, snap.Motion.DurXSlow},
+	}
+	for _, d := range durs {
+		if d.got != float64(d.want)/1e6 {
+			t.Errorf("motion.durations.%s = %v ms, want %v ms", d.name, d.got, float64(d.want)/1e6)
+		}
+	}
+	eases := []struct {
+		name string
+		got  [4]float64
+		want tokens.Bezier
+	}{
+		{"standard", p.Motion.Easings.Standard, snap.Motion.EaseStandard},
+		{"standardAccelerate", p.Motion.Easings.StandardAccelerate, snap.Motion.EaseStandardAccelerate},
+		{"standardDecelerate", p.Motion.Easings.StandardDecelerate, snap.Motion.EaseStandardDecelerate},
+		{"emphasized", p.Motion.Easings.Emphasized, snap.Motion.EaseEmphasized},
+		{"emphasizedAccelerate", p.Motion.Easings.EmphasizedAccelerate, snap.Motion.EaseEmphasizedAccelerate},
+		{"emphasizedDecelerate", p.Motion.Easings.EmphasizedDecelerate, snap.Motion.EaseEmphasizedDecelerate},
+	}
+	for _, e := range eases {
+		// The file records shortest-float32 decimals; converting the parsed
+		// float64s back to float32 must land on the exact control points.
+		got := [4]float32{float32(e.got[0]), float32(e.got[1]), float32(e.got[2]), float32(e.got[3])}
+		if want := [4]float32{e.want.P1[0], e.want.P1[1], e.want.P2[0], e.want.P2[1]}; got != want {
+			t.Errorf("motion.easings.%s = %v, want %v", e.name, e.got, want)
+		}
+	}
+	springs := []struct {
+		name string
+		got  SpringParam
+		want tokens.Spring
+	}{
+		{"default", p.Motion.Springs.Default, snap.Motion.SpringDefault},
+		{"snappy", p.Motion.Springs.Snappy, snap.Motion.SpringSnappy},
+		{"gentle", p.Motion.Springs.Gentle, snap.Motion.SpringGentle},
+	}
+	for _, sp := range springs {
+		// Same shortest-float32 contract as the easings: the recorded
+		// decimals must reproduce the Go float32s bit-for-bit.
+		got := tokens.Spring{
+			Mass:      float32(sp.got.Mass),
+			Stiffness: float32(sp.got.Stiffness),
+			Damping:   float32(sp.got.Damping),
+		}
+		if got != sp.want {
+			t.Errorf("motion.springs.%s = %+v, want %+v", sp.name, sp.got, sp.want)
+		}
+	}
 }
 
 // TestCaptureRejectsIrreproducible asserts Capture refuses inputs
@@ -293,6 +515,12 @@ func TestCaptureRejectsIrreproducible(t *testing.T) {
 	th.Color = rx.Of(tokens.DefaultDark) // a dark scheme: its Primary pin is not the seed
 	if _, err := Capture(th); err == nil {
 		t.Error("Capture of a dark colour emission must error: FromSeed(pin) cannot reproduce it")
+	}
+
+	th = theme.Default()
+	th.Density = rx.Of(tokens.Density{ControlHeight: 30, PaddingX: 10, PaddingY: 5})
+	if _, err := Capture(th); err == nil {
+		t.Error("Capture of a non-preset density must error: theme.json records density as a named setting")
 	}
 }
 

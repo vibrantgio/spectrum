@@ -24,24 +24,29 @@ type Snapshot struct {
 	Light, Dark tokens.ColorTokens
 
 	Typography tokens.Typography
+	Density    tokens.Density
+	Motion     tokens.MotionScale
 	Spacing    tokens.SpacingScale
 	Radius     tokens.RadiusScale
 	Elevation  tokens.ElevationScale
 }
 
 // Capture collects the first emission of each observable a serialisation
-// needs — Color, Typography, Spacing, Radius and Elevation — into a
-// Snapshot. (Type duplicates Typography's sizes and Motion is E5.1's, so
-// neither is consumed.)
+// needs — Color, Typography, Density, Motion, Spacing, Radius and Elevation
+// — into a Snapshot. (Type is not consumed: it duplicates Typography's
+// sizes.)
 //
 // The colour emission must be a seed-derived light scheme: FromSeed pins
 // the light primary base to the seed exactly, so Capture recovers the seed
 // from the emission's Primary and regenerates the pair. An emission
 // FromSeed cannot reproduce — a dark scheme, or hand-assembled tokens — is
 // an error, because theme.json could not honestly claim to reproduce it.
+// The density emission must likewise be one of the two published settings —
+// tokens.Comfortable or tokens.Compact — because theme.json records density
+// as a named setting plus both settings' metrics, not as free-form numbers.
 func Capture(th theme.Theme) (Snapshot, error) {
 	var s Snapshot
-	if th.Color == nil || th.Typography == nil || th.Spacing == nil || th.Radius == nil || th.Elevation == nil {
+	if th.Color == nil || th.Typography == nil || th.Density == nil || th.Motion == nil || th.Spacing == nil || th.Radius == nil || th.Elevation == nil {
 		return s, fmt.Errorf("export: Capture: theme has nil observables; every consumed field of theme.Theme must be set")
 	}
 	var err error
@@ -50,6 +55,12 @@ func Capture(th theme.Theme) (Snapshot, error) {
 	}
 	if s.Typography, err = th.Typography.First(); err != nil {
 		return s, fmt.Errorf("export: Capture: Typography: %w", err)
+	}
+	if s.Density, err = th.Density.First(); err != nil {
+		return s, fmt.Errorf("export: Capture: Density: %w", err)
+	}
+	if s.Motion, err = th.Motion.First(); err != nil {
+		return s, fmt.Errorf("export: Capture: Motion: %w", err)
 	}
 	if s.Spacing, err = th.Spacing.First(); err != nil {
 		return s, fmt.Errorf("export: Capture: Spacing: %w", err)
@@ -67,7 +78,23 @@ func Capture(th theme.Theme) (Snapshot, error) {
 		return s, fmt.Errorf("export: Capture: the colour emission is not FromSeed(%s)'s light scheme; only seed-derived light schemes are reproducible from theme.json", hexRGB(s.Seed))
 	}
 	s.Dark = dark
+
+	if _, ok := densitySetting(s.Density); !ok {
+		return s, fmt.Errorf("export: Capture: the density emission is neither tokens.Comfortable nor tokens.Compact; theme.json records density as a named setting, so only the published settings are reproducible")
+	}
 	return s, nil
+}
+
+// densitySetting names a density emission: the setting string theme.json
+// records, and whether the emission is one of the two published settings.
+func densitySetting(d tokens.Density) (string, bool) {
+	switch d {
+	case tokens.Comfortable:
+		return "comfortable", true
+	case tokens.Compact:
+		return "compact", true
+	}
+	return "", false
 }
 
 // Write renders s into dir as the full Claude Design project layout —

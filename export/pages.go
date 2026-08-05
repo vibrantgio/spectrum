@@ -438,11 +438,60 @@ const layoutPageCSS = `.space-row {
   align-items: center;
   justify-content: center;
 }
-.shadow-card {
+.density-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin: var(--space-4) 0;
+}
+.density-col {
+  flex: 1 1 18rem;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: thin solid var(--color-neutral-300);
+  border-radius: var(--radius-md);
+}
+.hit-target {
+  display: flex;
+  align-items: center;
+  min-height: var(--density-min-hit-target);
+  border: thin dashed var(--color-neutral-500);
+  border-radius: var(--radius-sm);
+  margin: var(--space-2) 0;
+}
+.control-bar {
+  height: var(--density-control-height);
+  padding: 0 var(--density-padding-x);
+  display: inline-flex;
+  align-items: center;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border-radius: var(--radius-md);
+  font-size: var(--font-label-large-size);
+  font-weight: var(--font-label-large-weight);
+}
+.pad-box {
+  display: inline-block;
+  padding: var(--density-padding-y) var(--density-padding-x);
+  background: var(--color-neutral-200);
+  border: thin solid var(--color-neutral-500);
+  border-radius: var(--radius-md);
+  margin: var(--space-2) 0;
+}
+.elevation-ground {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  padding: var(--space-6);
+  background: var(--color-neutral-100);
+  border-radius: var(--radius-md);
+  margin: var(--space-4) 0;
+}
+.surface-card {
   width: var(--space-24);
   height: var(--space-20);
-  background: var(--color-surface);
   border-radius: var(--radius-md);
+  border: thin solid var(--color-neutral-300);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -450,8 +499,10 @@ const layoutPageCSS = `.space-row {
 `
 
 // layoutHTML renders foundations/layout.html: the spacing scale as sized
-// bars, the radius scale on sample boxes, and today's shadow elevation on
-// cards — each specimen sized, rounded or shadowed by its var.
+// bars, the control metrics at both density settings side by side, the
+// radius scale on sample boxes, and tonal elevation — the surface fill as
+// the default cue, the dp shadow as the opt-in cue for floating transients
+// — each specimen sized, padded, rounded, filled or shadowed by its var.
 func layoutHTML(s Snapshot) string {
 	var b strings.Builder
 
@@ -462,6 +513,32 @@ func layoutHTML(s Snapshot) string {
 	}
 	b.WriteString("</section>\n")
 
+	b.WriteString("<section>\n<h2>Density</h2>\n")
+	b.WriteString("<p class=\"intro\">Two published settings share one variable family: <code>:root</code> carries comfortable, " +
+		"and a <code>.compact</code> class block overrides <code>--density-control-height</code> and <code>--density-padding-x/-y</code> " +
+		"the way <code>.dark</code> overrides the colours &mdash; the right column below is the same markup inside a <code>class=\"compact\"</code> wrapper. " +
+		"The dashed outline is <code>--density-min-hit-target</code>, the WCAG 2.5.5 pointer-target floor: it is not overridden, " +
+		"so compact shrinks the drawn control but never the clickable area.</p>\n")
+	b.WriteString("<div class=\"density-pair\">\n")
+	for _, setting := range []struct {
+		class string
+		label string
+		d     tokens.Density
+	}{
+		{"density-col", "comfortable (root)", tokens.Comfortable},
+		{"density-col compact", "compact (.compact)", tokens.Compact},
+	} {
+		fmt.Fprintf(&b, "<div class=\"%s\">\n<h3>%s</h3>\n", setting.class, html.EscapeString(setting.label))
+		b.WriteString("<div class=\"hit-target\">\n<span class=\"control-bar\">Control</span>\n</div>\n")
+		fmt.Fprintf(&b, "<p class=\"annot\"><code>--density-control-height</code> &middot; %s &middot; hit target &ge; %s</p>\n",
+			px(setting.d.ControlHeight), px(setting.d.MinHitTarget()))
+		b.WriteString("<div class=\"pad-box\">padding</div>\n")
+		fmt.Fprintf(&b, "<p class=\"annot\"><code>--density-padding-x</code> %s &middot; <code>--density-padding-y</code> %s</p>\n",
+			px(setting.d.PaddingX), px(setting.d.PaddingY))
+		b.WriteString("</div>\n")
+	}
+	b.WriteString("</div>\n</section>\n")
+
 	b.WriteString("<section>\n<h2>Radius</h2>\n<div class=\"specimen-grid\">\n")
 	for _, key := range radiusKeys {
 		fmt.Fprintf(&b, "<div>\n<div class=\"radius-box\" style=\"border-radius: var(--radius-%s)\">Aa</div>\n", key.name)
@@ -470,15 +547,39 @@ func layoutHTML(s Snapshot) string {
 	b.WriteString("</div>\n</section>\n")
 
 	b.WriteString("<section>\n<h2>Elevation</h2>\n")
-	b.WriteString("<p class=\"intro\">Shadow depths as they stand today: level N casts a y-offset of its dp depth with twice that blur. E2.1 remaps elevation to surface roles and E5.1 re-renders this section.</p>\n")
-	b.WriteString("<div class=\"specimen-grid\">\n")
+	b.WriteString("<p class=\"intro\">Elevation is tonal (E2.1): a raised surface separates from its ground by colour, " +
+		"one neutral-ramp step per storey, and <code>--elevation-N</code> is that surface fill &mdash; the default cue, " +
+		"resolved as a <code>var()</code> reference into the neutral ramp so it flips with the mode. " +
+		"The cards below sit on the step-100 ground; level 0 is the bg pin, levels 1&ndash;3 are steps 200/300/400, " +
+		"and levels 4/5 clamp to level 3&rsquo;s step &mdash; desktop has no six-storey stack.</p>\n")
+	b.WriteString("<div class=\"elevation-ground\">\n")
 	for _, level := range elevationLevels {
-		fmt.Fprintf(&b, "<div>\n<div class=\"shadow-card\" style=\"box-shadow: var(--shadow-%s)\">%s</div>\n", level.name, level.name)
-		fmt.Fprintf(&b, "<p class=\"annot\"><code>--shadow-%s</code> &middot; depth %sdp</p>\n</div>\n", level.name, fnum(level.pick(s.Elevation)))
+		step := s.Elevation.SurfaceStep(level.level)
+		fill := "bg pin"
+		if step != 0 {
+			fill = fmt.Sprintf("neutral-%d", step)
+		}
+		note := ""
+		if level.level >= tokens.Level4 {
+			note = " &middot; clamped"
+		}
+		fmt.Fprintf(&b, "<div>\n<div class=\"surface-card\" style=\"background: var(--elevation-%s)\">%s</div>\n", level.name, level.name)
+		fmt.Fprintf(&b, "<p class=\"annot\"><code>--elevation-%s</code> &middot; %s%s</p>\n</div>\n", level.name, fill, note)
+	}
+	b.WriteString("</div>\n")
+
+	b.WriteString("<h3>The opt-in shadow</h3>\n")
+	b.WriteString("<p class=\"intro\">The dp shadows survive as <code>--shadow-N</code> for floating transients only &mdash; " +
+		"menus, dialogs, tooltips (E2.2): a float adds its shadow on top of its tonal fill; resting surfaces use the fill alone.</p>\n")
+	b.WriteString("<div class=\"elevation-ground\">\n")
+	for _, level := range elevationLevels {
+		fmt.Fprintf(&b, "<div>\n<div class=\"surface-card\" style=\"background: var(--elevation-%s); box-shadow: var(--shadow-%s)\">%s</div>\n", level.name, level.name, level.name)
+		fmt.Fprintf(&b, "<p class=\"annot\"><code>--shadow-%s</code> &middot; depth %sdp</p>\n</div>\n", level.name, fnum(s.Elevation.Dp(level.level)))
 	}
 	b.WriteString("</div>\n</section>\n")
 
-	intro := "The spacing scale as sized bars, the radius scale on sample boxes and the elevation steps on cards &mdash; " +
-		"every bar width, corner radius and shadow resolves through its token, so the sheet is the single source of these shapes."
+	intro := "The spacing scale as sized bars, the control metrics at both density settings, the radius scale on sample boxes " +
+		"and tonal elevation as filled cards &mdash; every bar width, control height, padding, corner radius, surface fill and " +
+		"shadow resolves through its token, so the sheet is the single source of these shapes."
 	return page("Layout — Vibrant Gio foundations", "Layout", intro, layoutPageCSS, b.String())
 }

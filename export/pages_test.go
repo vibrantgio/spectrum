@@ -225,7 +225,17 @@ func TestReadmeNamesFamilies(t *testing.T) {
 		want = append(want, "--radius-"+key.name)
 	}
 	for _, level := range elevationLevels {
-		want = append(want, "--shadow-"+level.name)
+		want = append(want, "--elevation-"+level.name, "--shadow-"+level.name)
+	}
+	for _, m := range densityMetrics {
+		want = append(want, "--density-"+m.name)
+	}
+	want = append(want, "--density-min-hit-target")
+	for _, role := range easeRoles {
+		want = append(want, "--ease-"+role.name)
+	}
+	for _, stop := range durationStops {
+		want = append(want, "--duration-"+stop.name)
 	}
 	want = append(want,
 		wantHex(snap.Seed),
@@ -254,6 +264,36 @@ func TestReadmeNamesFamilies(t *testing.T) {
 		}
 		if !strings.Contains(readme, mention) {
 			t.Errorf("sheet variable %s is undocumented: readme.md lacks %q", name, mention)
+		}
+	}
+}
+
+// TestLayoutPageDensityAndElevation asserts E5.1's layout-page contract:
+// the control metrics render at BOTH density settings — the compact column
+// is the same markup inside a .compact wrapper, exercising the sheet's
+// override block — and the elevation section's cards fill tonally through
+// --elevation-* with the dp shadow shown as the opt-in cue.
+func TestLayoutPageDensityAndElevation(t *testing.T) {
+	_, _, pages := writeProject(t)
+	src := pages[filepath.Join("foundations", "layout.html")]
+
+	if !strings.Contains(src, `class="density-col compact"`) {
+		t.Error("layout.html has no .compact density column; both settings must render side by side")
+	}
+	for _, m := range densityMetrics {
+		if !strings.Contains(src, "var(--density-"+m.name+")") {
+			t.Errorf("layout.html does not style through var(--density-%s)", m.name)
+		}
+	}
+	if !strings.Contains(src, "var(--density-min-hit-target)") {
+		t.Error("layout.html does not render the invariant hit-target floor")
+	}
+	for _, level := range elevationLevels {
+		if !strings.Contains(src, fmt.Sprintf(`style="background: var(--elevation-%s)"`, level.name)) {
+			t.Errorf("layout.html has no tonal card filled by var(--elevation-%s)", level.name)
+		}
+		if !strings.Contains(src, fmt.Sprintf("box-shadow: var(--shadow-%s)", level.name)) {
+			t.Errorf("layout.html does not show the opt-in shadow var(--shadow-%s)", level.name)
 		}
 	}
 }
