@@ -370,6 +370,149 @@ func TestFromSourceThemeAccentSurvivesDarkMode(t *testing.T) {
 	}
 }
 
+// rawAccent is an arbitrary colour of the kind the Windows registry or a
+// KDE kdeglobals delivers — deliberately none of the enum accent seeds.
+var rawAccent = color.NRGBA{R: 0x00, G: 0x78, B: 0xD7, A: 0xFF} // Windows default blue
+
+func TestFromSourceThemeFollowsAccentSeed(t *testing.T) {
+	src := &fakeSource{vals: []system.Appearance{{Dark: false, AccentSeed: rawAccent, AccentSeedSet: true}}}
+	wantLight, _ := tokens.FromSeed(rawAccent)
+
+	themes, err := collect(system.FromSourceTheme(src, time.Hour).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	if len(themes) != 1 {
+		t.Fatalf("expected 1 theme, got %d", len(themes))
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != wantLight {
+		t.Fatalf("light palette is not FromSeed of the raw accent seed")
+	}
+	// ADR-007: the light primary base pins the seed byte-exact, so an
+	// accented button matches the OS accent colour exactly.
+	if colors[0].Primary != rawAccent {
+		t.Errorf("light Primary = %+v, want the raw seed %+v", colors[0].Primary, rawAccent)
+	}
+}
+
+func TestFromSourceThemeAccentSeedSurvivesDarkMode(t *testing.T) {
+	src := &fakeSource{vals: []system.Appearance{{Dark: true, AccentSeed: rawAccent, AccentSeedSet: true}}}
+	_, wantDark := tokens.FromSeed(rawAccent)
+
+	themes, err := collect(system.FromSourceTheme(src, time.Hour).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != wantDark {
+		t.Fatalf("dark palette is not the raw seed's dark set")
+	}
+	if colors[0] == tokens.DefaultDark {
+		t.Error("dark emission fell back to DefaultDark; the raw accent was lost")
+	}
+}
+
+func TestFromSourceThemeAccentSeedBeatsEnumAccent(t *testing.T) {
+	// A source that (hypothetically) sets both shapes: the raw seed wins.
+	src := &fakeSource{vals: []system.Appearance{{
+		Accent:        system.AccentRed,
+		AccentSeed:    rawAccent,
+		AccentSeedSet: true,
+	}}}
+	wantLight, _ := tokens.FromSeed(rawAccent)
+
+	themes, err := collect(system.FromSourceTheme(src, time.Hour).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != wantLight {
+		t.Fatalf("AccentSeed must beat the enum accent")
+	}
+	if colors[0].Primary != rawAccent {
+		t.Errorf("Primary = %+v, want the raw seed %+v (not systemRed)", colors[0].Primary, rawAccent)
+	}
+}
+
+func TestFromSourceThemeUnsetAccentSeedIgnored(t *testing.T) {
+	// AccentSeed without AccentSeedSet carries no meaning: the default
+	// palette holds. Guards against a source leaving a stale colour behind.
+	src := &fakeSource{vals: []system.Appearance{{AccentSeed: rawAccent, AccentSeedSet: false}}}
+
+	themes, err := collect(system.FromSourceTheme(src, time.Hour).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != tokens.DefaultLight {
+		t.Errorf("unset AccentSeed must leave the default palette; got %+v", colors)
+	}
+}
+
+func TestFromSourceThemeWithSeedBeatsAccentSeed(t *testing.T) {
+	src := &fakeSource{vals: []system.Appearance{{AccentSeed: rawAccent, AccentSeedSet: true}}}
+	wantLight, _ := tokens.FromSeed(customSeed)
+
+	themes, err := collect(system.FromSourceTheme(src, time.Hour, system.WithSeed(customSeed)).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != wantLight {
+		t.Fatalf("WithSeed must beat the OS AccentSeed")
+	}
+	if colors[0].Primary != customSeed {
+		t.Errorf("Primary = %+v, want the app's own seed %+v (not the OS colour)", colors[0].Primary, customSeed)
+	}
+}
+
+func TestFromSourceThemeWithPaletteBeatsAccentSeed(t *testing.T) {
+	src := &fakeSource{vals: []system.Appearance{{AccentSeed: rawAccent, AccentSeedSet: true}}}
+	customLight, customDark := tokens.FromSeed(customSeed)
+
+	themes, err := collect(system.FromSourceTheme(src, time.Hour, system.WithPalette(customLight, customDark)).Take(1))
+	if err != nil {
+		t.Fatalf("theme observe: %v", err)
+	}
+	colors, err := collect(themes[0].Color)
+	if err != nil {
+		t.Fatalf("color observe: %v", err)
+	}
+	if len(colors) != 1 || colors[0] != customLight {
+		t.Errorf("WithPalette must beat the OS AccentSeed; got a different palette")
+	}
+}
+
+func TestFromSourceEmitsOnAccentSeedChange(t *testing.T) {
+	a := system.Appearance{AccentSeed: rawAccent, AccentSeedSet: true}
+	b := system.Appearance{AccentSeed: color.NRGBA{R: 0xE6, G: 0x2D, B: 0x42, A: 0xFF}, AccentSeedSet: true}
+	src := &fakeSource{vals: []system.Appearance{a, a, b}}
+
+	got, err := collect(system.FromSource(src, time.Millisecond).Take(2))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 2 || got[0] != a || got[1] != b {
+		t.Errorf("seed transitions wrong: got %+v", got)
+	}
+}
+
 func TestFromSourceThemeWithPaletteSurvivesLightToDark(t *testing.T) {
 	src := &fakeSource{vals: []system.Appearance{{Dark: false}, {Dark: true}}}
 	customLight, customDark := tokens.FromSeed(customSeed)
