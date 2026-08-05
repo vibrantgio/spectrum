@@ -11,6 +11,7 @@ type Theme struct {
 	Color      rx.Observable[tokens.ColorTokens]
 	Type       rx.Observable[tokens.TypeScale]
 	Typography rx.Observable[tokens.Typography]
+	Density    rx.Observable[tokens.Density]
 	Motion     rx.Observable[tokens.MotionScale]
 	Spacing    rx.Observable[tokens.SpacingScale]
 	Radius     rx.Observable[tokens.RadiusScale]
@@ -25,6 +26,7 @@ func Default() Theme {
 		Color:      rx.Of(tokens.DefaultLight),
 		Type:       rx.Of(tokens.DefaultTypeScale),
 		Typography: rx.Of(tokens.DefaultTypography),
+		Density:    rx.Of(tokens.Comfortable),
 		Motion:     rx.Of(tokens.Motion),
 		Spacing:    rx.Of(tokens.Spacing),
 		Radius:     rx.Of(tokens.Radius),

@@ -77,3 +77,39 @@ const (
 	// not a control height.
 	MinHitTarget float32 = 44
 )
+
+// Density is one density setting: the drawn control height and its inner
+// padding, all in dp. It is a comparable value struct like the other token
+// types. The WCAG 2.5.5 pointer-target floor is deliberately a method, not a
+// field — see [Density.MinHitTarget] — so no Density value can carry a
+// shrunken hit target.
+type Density struct {
+	// ControlHeight is the visual control height in dp
+	// ([ComfortableControlHeight] or [CompactControlHeight]).
+	ControlHeight float32
+	// PaddingX is the horizontal inner padding of a control in dp.
+	PaddingX float32
+	// PaddingY is the vertical inner padding of a control in dp.
+	PaddingY float32
+}
+
+// MinHitTarget returns the WCAG 2.5.5 pointer-target minimum in dp. It is a
+// method returning the package const [MinHitTarget] rather than a struct
+// field, so it is structurally identical across every density: Compact
+// shrinks the drawn control, never the clickable area.
+func (Density) MinHitTarget() float32 { return MinHitTarget }
+
+// The padding picks come from the same measured world as the control
+// heights above:
+//
+//   - Comfortable: shadcn/ui's default button is h-9 px-4 py-2 → 16 dp
+//     horizontal, 8 dp vertical, pairing with the 36 dp height.
+//   - Compact: shadcn's sm button drops to px-3 (12 dp); vertical scales
+//     with it on the 2:1 ratio the default keeps → 12 dp / 6 dp, pairing
+//     with the 28 dp height.
+var (
+	// Comfortable is the default desktop density.
+	Comfortable = Density{ControlHeight: ComfortableControlHeight, PaddingX: 16, PaddingY: 8}
+	// Compact is the dense mode: smaller drawn controls, same hit target.
+	Compact = Density{ControlHeight: CompactControlHeight, PaddingX: 12, PaddingY: 6}
+)

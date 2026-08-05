@@ -19,6 +19,7 @@ func AutoLightDark() rx.Observable[Theme] {
 			Color:      rx.Of(colors),
 			Type:       rx.Of(tokens.DefaultTypeScale),
 			Typography: rx.Of(tokens.DefaultTypography),
+			Density:    rx.Of(tokens.Comfortable),
 			Motion:     rx.Of(tokens.Motion),
 			Spacing:    rx.Of(tokens.Spacing),
 			Radius:     rx.Of(tokens.Radius),

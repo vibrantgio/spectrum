@@ -33,6 +33,9 @@ func TestDefaultThemeFieldsNonNil(t *testing.T) {
 	if th.Type == nil {
 		t.Error("Type is nil")
 	}
+	if th.Density == nil {
+		t.Error("Density is nil")
+	}
 	if th.Motion == nil {
 		t.Error("Motion is nil")
 	}
@@ -72,6 +75,20 @@ func TestDefaultTypeEmission(t *testing.T) {
 	}
 	if got[0] != tokens.DefaultTypeScale {
 		t.Error("emitted TypeScale does not match tokens.DefaultTypeScale")
+	}
+}
+
+func TestDefaultDensityEmission(t *testing.T) {
+	th := theme.Default()
+	got, err := collect(th.Density)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 emission, got %d", len(got))
+	}
+	if got[0] != tokens.Comfortable {
+		t.Error("emitted Density does not match tokens.Comfortable")
 	}
 }
 
