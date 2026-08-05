@@ -11,7 +11,9 @@
 // and Motion are what those observables carry by default.
 //
 // Every scale is a plain comparable struct of float32 device-independent
-// pixels, except MotionScale, whose duration stops are time.Duration. The
+// pixels, except MotionScale, whose duration stops are time.Duration, and
+// Typography, which also carries the font faces and the lazily built shaper
+// its roles are shaped with. The
 // package-level instances are variables rather than constants, so treat them
 // as read-only: mutating one changes it for every consumer in the process.
 // Copy and edit a value instead, which is how a custom theme is built.

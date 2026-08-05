@@ -1,5 +1,13 @@
 package tokens
 
+import (
+	"sync"
+
+	"gioui.org/font"
+	"gioui.org/text"
+	"github.com/vibrantgio/font/roboto"
+)
+
 // TypeScale holds font-size stops for each Material Design 3 type role,
 // expressed in device-independent pixels (dp).
 type TypeScale struct {
@@ -31,6 +39,13 @@ const (
 	WeightRegular = 400
 	WeightMedium  = 500
 )
+
+// FontWeight converts a CSS-style numeric weight, where regular is 400, to
+// gioui.org's font.Weight, which counts in steps of 100 from regular at 0:
+// FontWeight(400) is font.Normal and FontWeight(500) is font.Medium.
+func FontWeight(weight int) font.Weight {
+	return font.Weight(weight - WeightRegular)
+}
 
 // TextStyle describes one Material Design 3 type role: the typeface to shape
 // with and its metrics. Size, LineHeight and Tracking (letter spacing) are in
@@ -65,6 +80,35 @@ type Typography struct {
 	BodyLarge  TextStyle
 	BodyMedium TextStyle
 	BodySmall  TextStyle
+
+	// Faces is the font collection Shaper builds from. Every Typeface a role
+	// names must appear in it, or text in that role falls back to whatever
+	// face the shaper picks instead.
+	Faces []font.FontFace
+
+	// shaper is the cache behind Shaper. Guarded by shaperMu.
+	shaper *text.Shaper
+}
+
+// shaperMu guards the lazily built shaper cache of every Typography value.
+var shaperMu sync.Mutex
+
+// Shaper returns the text shaper for Faces, building it on the first call and
+// caching it in the receiver. The shaper is built with system fonts excluded,
+// so text resolves only against Faces. It is safe for concurrent use from any
+// number of goroutines.
+//
+// Copying a Typography value before its first Shaper call is fine — the cache
+// is per-copy, and each copy lazily builds its own shaper. Copies made after
+// the first call share the already built shaper, so change Faces only before
+// shaping starts.
+func (t *Typography) Shaper() *text.Shaper {
+	shaperMu.Lock()
+	defer shaperMu.Unlock()
+	if t.shaper == nil {
+		t.shaper = text.NewShaper(text.NoSystemFonts(), text.WithCollection(t.Faces))
+	}
+	return t.shaper
 }
 
 // DefaultTypography is the canonical MD3 typography: Roboto throughout, the
@@ -91,6 +135,8 @@ var DefaultTypography = Typography{
 	BodyLarge:  TextStyle{Typeface: "Roboto", Weight: WeightRegular, Size: 16, LineHeight: 24, Tracking: 0.5},
 	BodyMedium: TextStyle{Typeface: "Roboto", Weight: WeightRegular, Size: 14, LineHeight: 20, Tracking: 0.25},
 	BodySmall:  TextStyle{Typeface: "Roboto", Weight: WeightRegular, Size: 12, LineHeight: 16, Tracking: 0.4},
+
+	Faces: roboto.FontFaces(),
 }
 
 // DefaultTypeScale is the canonical MD3 type scale.
