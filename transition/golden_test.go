@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vibrantgio/prism/tokens"
+	"github.com/vibrantgio/spectrum/tokens"
 	"github.com/vibrantgio/spectrum/transition"
 )
 

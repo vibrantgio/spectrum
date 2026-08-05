@@ -35,7 +35,7 @@ import (
 	"github.com/reactivego/rx"
 
 	"github.com/vibrantgio/mvu"
-	"github.com/vibrantgio/prism/theme"
+	"github.com/vibrantgio/spectrum/theme"
 )
 
 // Window pairs an [mvu.Window] with the theme observable that scopes

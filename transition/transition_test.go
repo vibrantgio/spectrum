@@ -3,7 +3,7 @@ package transition_test
 import (
 	"testing"
 
-	"github.com/vibrantgio/prism/tokens"
+	"github.com/vibrantgio/spectrum/tokens"
 	"github.com/vibrantgio/spectrum/transition"
 )
 

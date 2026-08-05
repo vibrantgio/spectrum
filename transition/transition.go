@@ -26,7 +26,7 @@
 package transition
 
 import (
-	"github.com/vibrantgio/prism/tokens"
+	"github.com/vibrantgio/spectrum/tokens"
 	"github.com/vibrantgio/pulse/tween"
 )
 

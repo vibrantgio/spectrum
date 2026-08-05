@@ -38,8 +38,8 @@ import (
 	"time"
 
 	"github.com/reactivego/rx"
-	"github.com/vibrantgio/prism/theme"
-	"github.com/vibrantgio/prism/tokens"
+	"github.com/vibrantgio/spectrum/theme"
+	"github.com/vibrantgio/spectrum/tokens"
 )
 
 // Appearance is the OS-level appearance state we observe. All fields are
