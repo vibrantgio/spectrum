@@ -47,6 +47,37 @@ func TestDensityHitTargetFloor(t *testing.T) {
 	}
 }
 
+// TestStackedRowsClearTheAAMinimumTarget makes density.go's pointer-target
+// section checkable instead of merely readable. The claim it pins is F4.7's:
+// stacked rows — list rows, table rows and header cells, sidebar items — are
+// not extended to MinHitTarget, because adjacent rows would steal each other's
+// slop. So the narrowest pointer target in the system is a Compact row at
+// CompactControlHeight, and what that has to clear is WCAG 2.5.8 Target Size
+// (Minimum) at 24 dp, the criterion that governs at AA — not MinHitTarget's
+// 44 dp, which is 2.5.5 Target Size (Enhanced) and AAA.
+//
+// The third assertion is the one that would catch a well-meaning "fix": if
+// Compact rows ever did reach 44, Compact would have stopped being compact and
+// the doc would be describing something else.
+func TestStackedRowsClearTheAAMinimumTarget(t *testing.T) {
+	const (
+		targetSizeMinimumAA   float32 = 24 // WCAG 2.5.8 Target Size (Minimum)
+		targetSizeEnhancedAAA float32 = 44 // WCAG 2.5.5 Target Size (Enhanced)
+	)
+	if CompactControlHeight < targetSizeMinimumAA {
+		t.Errorf("CompactControlHeight = %v, below WCAG 2.5.8's %v dp: the densest row in the system would fail AA",
+			CompactControlHeight, targetSizeMinimumAA)
+	}
+	if MinHitTarget != targetSizeEnhancedAAA {
+		t.Errorf("MinHitTarget = %v, want %v (WCAG 2.5.5 Target Size (Enhanced), AAA)",
+			MinHitTarget, targetSizeEnhancedAAA)
+	}
+	if CompactControlHeight >= targetSizeEnhancedAAA {
+		t.Errorf("CompactControlHeight = %v, at or above %v: rows are documented as clearing AA and not reaching AAA, so density.go needs rewriting before this passes",
+			CompactControlHeight, targetSizeEnhancedAAA)
+	}
+}
+
 // TestDensitySettingsMatchTable pins the two settings to E1.1's measured
 // table: control heights are exactly the picked consts (so within the table's
 // [28, 44] bounds already asserted above), Compact is strictly denser than

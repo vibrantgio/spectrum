@@ -99,6 +99,53 @@ package tokens
 // Comfortable button (36) because BodyLarge is a larger role than LabelLarge.
 // Both are honest readings of the tokens. A design that wants them equal
 // changes the roles or the padding, not the measurement.
+//
+// # Pointer targets: which WCAG level actually governs
+//
+// [MinHitTarget] is 44 dp, and 44 dp is not the AA requirement. Two success
+// criteria are in play and they are a whole conformance level apart:
+//
+//	criterion                            level   threshold   applies to
+//	---------                            -----   ---------   ----------
+//	WCAG 2.5.5 Target Size (Enhanced)    AAA     44×44 CSS px  every pointer target
+//	WCAG 2.5.8 Target Size (Minimum)     AA      24×24 CSS px  every pointer target
+//
+// (WCAG 2.2, https://www.w3.org/TR/WCAG22/#target-size-enhanced and
+// #target-size-minimum. Both carry an inline/essential exception this system
+// does not need to lean on.)
+//
+// E1.3 extended the pointer area to 44 dp for standalone controls — button,
+// checkbox, radio, text field, the dropdown's closed trigger — and
+// deliberately not for stacked rows: list rows, table rows and header cells,
+// and the open dropdown's option rows. Adjacent rows tile edge to edge, so
+// slop granted to one row is stolen from its neighbour; the extension would
+// not enlarge anything, it would only make the boundary lie about where it is.
+// Rows rely on their full row width instead.
+//
+// So the stacked-row targets are as tall as the row is, and F4.7 measured them
+// at 1:1 rather than repeating the token (remember ControlHeight is a floor —
+// max(ControlHeight, lineBox + 2×PaddingY) — so a row can draw more than the
+// token says):
+//
+//	row                                     Comfortable   Compact   sizing
+//	---                                     -----------   -------   ------
+//	prism/list row (list.RowHeight)         36            28        pinned to ControlHeight
+//	cadence/table body row and header cell  36            28        pinned to ControlHeight
+//	cadence/sidebar item                    36            28        pinned to ControlHeight
+//	prism/input dropdown option row         40            36        floor formula, BodyLarge
+//
+// The narrowest of these is the 28 dp Compact row. 28 ≥ 24, so every row in
+// the system clears 2.5.8 at AA; none of them reaches 2.5.5's 44, and F4.7
+// decided not to force them to. Flooring rows at 44 dp would erase Compact in
+// exactly the dense tables and lists Compact exists for — a 44 dp "compact"
+// row is 8 dp taller than a Comfortable one — which trades a real, everyday
+// density benefit for a AAA criterion the system does not claim. An
+// application that does target AAA sets Comfortable (36) and still does not
+// reach 44 by row height alone; it needs a taller row of its own.
+//
+// This is a scoped promise, not a weakened one: what narrowed in F4.7 was the
+// documentation, which had claimed 44 dp for everything. Nothing about the
+// drawn or clickable geometry changed.
 const (
 	// ComfortableControlHeight is the default desktop control-height floor in
 	// dp: a Comfortable control is at least this tall, and taller when its
@@ -108,16 +155,27 @@ const (
 	// control drawn in a Label or Body role clears it — see the table above —
 	// so it is the floor that is least often the answer.
 	CompactControlHeight float32 = 28
-	// MinHitTarget is the WCAG 2.5.5 pointer-target minimum in dp. It does
-	// not scale with density; prism's current hardcoded 44 dp is this value,
-	// not a control height.
+	// MinHitTarget is the pointer-target floor in dp for a *standalone*
+	// control — one with space around it: button, checkbox, radio, text
+	// field, the dropdown's closed trigger. Those extend their pointer area
+	// to at least this on each axis, centred on the drawn control, whatever
+	// the density.
+	//
+	// It is 44 dp, WCAG 2.5.5 Target Size (Enhanced), which is a AAA
+	// criterion. It is not what stacked rows guarantee, and never was:
+	// list rows, table rows and header cells, and open-dropdown option rows
+	// are their own row height (28 dp at Compact) because extending one row
+	// would steal its neighbour's slop. Those clear WCAG 2.5.8 Target Size
+	// (Minimum) at 24 dp, the criterion that governs at AA. See "Pointer
+	// targets: which WCAG level actually governs" above for the measured
+	// per-row numbers.
 	MinHitTarget float32 = 44
 )
 
 // Density is one density setting: the drawn control height and its inner
 // padding, all in dp. It is a comparable value struct like the other token
-// types. The WCAG 2.5.5 pointer-target floor is deliberately a method, not a
-// field — see [Density.MinHitTarget] — so no Density value can carry a
+// types. The standalone-control pointer-target floor is deliberately a method,
+// not a field — see [Density.MinHitTarget] — so no Density value can carry a
 // shrunken hit target.
 type Density struct {
 	// ControlHeight is the minimum visual control height in dp
@@ -132,10 +190,14 @@ type Density struct {
 	PaddingY float32
 }
 
-// MinHitTarget returns the WCAG 2.5.5 pointer-target minimum in dp. It is a
-// method returning the package const [MinHitTarget] rather than a struct
-// field, so it is structurally identical across every density: Compact
-// shrinks the drawn control, never the clickable area.
+// MinHitTarget returns the standalone-control pointer-target floor in dp —
+// the package const [MinHitTarget], 44 dp, WCAG 2.5.5 Target Size (Enhanced).
+// It is a method rather than a struct field, so it is structurally identical
+// across every density: Compact shrinks the drawn control, never the clickable
+// area of a control that has room to grow into.
+//
+// It does not describe stacked rows. Read [MinHitTarget] before wiring this
+// into anything that tiles.
 func (Density) MinHitTarget() float32 { return MinHitTarget }
 
 // The padding picks come from the same measured world as the control
