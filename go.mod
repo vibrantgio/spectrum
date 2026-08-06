@@ -5,7 +5,7 @@ go 1.25.1
 require (
 	gioui.org v0.10.1
 	github.com/reactivego/rx v0.3.0
-	github.com/vibrantgio/font v0.0.5
+	github.com/vibrantgio/font v0.1.0
 	github.com/vibrantgio/mvu v0.4.4
 	golang.org/x/image v0.44.0
 	golang.org/x/sys v0.47.0
