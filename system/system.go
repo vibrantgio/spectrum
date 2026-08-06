@@ -352,7 +352,6 @@ func (c *config) theme(v rx.Tuple2[Appearance, a11y.A11yPrefs]) theme.Theme {
 	}
 	return theme.Theme{
 		Color:      rx.Of(colors),
-		Type:       rx.Of(tokens.DefaultTypeScale),
 		Typography: rx.Of(tokens.DefaultTypography),
 		Density:    rx.Of(tokens.Comfortable),
 		Motion:     rx.Of(motion),

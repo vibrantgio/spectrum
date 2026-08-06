@@ -9,7 +9,6 @@ import (
 // to the fields they need and react to updates without polling.
 type Theme struct {
 	Color      rx.Observable[tokens.ColorTokens]
-	Type       rx.Observable[tokens.TypeScale]
 	Typography rx.Observable[tokens.Typography]
 	Density    rx.Observable[tokens.Density]
 	Motion     rx.Observable[tokens.MotionScale]
@@ -24,7 +23,6 @@ type Theme struct {
 func Default() Theme {
 	return Theme{
 		Color:      rx.Of(tokens.DefaultLight),
-		Type:       rx.Of(tokens.DefaultTypeScale),
 		Typography: rx.Of(tokens.DefaultTypography),
 		Density:    rx.Of(tokens.Comfortable),
 		Motion:     rx.Of(tokens.Motion),

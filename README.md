@@ -194,7 +194,18 @@ Honest about what does not work yet:
   loops stop when the last subscriber unsubscribes. Sharing is per
   observable value — build the stream once and hand the same value around;
   each separate `LiveTheme` call still costs its own loops.
-- **v0.2.0 is a breaking release.** F3.3's shim sweep deleted the
+- **v0.3.0 is a breaking release.** `tokens.TypeScale` and
+  `tokens.DefaultTypeScale` are gone, and with them `theme.Theme.Type`, the
+  observable that carried them. `TypeScale` was fifteen bare `float32`
+  sizes; `Typography` — which has carried the same sizes plus typeface,
+  weight, line height and tracking since C1.1, and the sixteenth `Code` role
+  since G-F0 — replaces it wholesale. Read `Theme.Typography` and take the
+  role you want: `typo.LabelLarge` where you read `ts.LabelLarge`, and
+  `tokens.DefaultTypography` where you passed `tokens.DefaultTypeScale`.
+  `Theme.Type` is deleted rather than retyped because nothing read it — the
+  in-org consumers moved to `Typography` in C1.1, E1.2 and F3.3, and
+  `spectrum/export` never consumed it at all.
+- **v0.2.0 was a breaking release too.** F3.3's shim sweep deleted the
   `spectrum/transition` alias, `ColorTokens`' five MD3 alias fields
   (`OnBackground`, `OnSurface`, `SurfaceVariant`, `OnSurfaceVariant`,
   `Outline`) and elevation levels 4 and 5. Read the deprecation notes on

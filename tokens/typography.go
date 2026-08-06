@@ -9,30 +9,6 @@ import (
 	"github.com/vibrantgio/font/robotomono"
 )
 
-// TypeScale holds font-size stops for each Material Design 3 type role,
-// expressed in device-independent pixels (dp).
-type TypeScale struct {
-	DisplayLarge  float32 // 57 dp
-	DisplayMedium float32 // 45 dp
-	DisplaySmall  float32 // 36 dp
-
-	HeadlineLarge  float32 // 32 dp
-	HeadlineMedium float32 // 28 dp
-	HeadlineSmall  float32 // 24 dp
-
-	TitleLarge  float32 // 22 dp
-	TitleMedium float32 // 16 dp
-	TitleSmall  float32 // 14 dp
-
-	LabelLarge  float32 // 14 dp
-	LabelMedium float32 // 12 dp
-	LabelSmall  float32 // 11 dp
-
-	BodyLarge  float32 // 16 dp
-	BodyMedium float32 // 14 dp
-	BodySmall  float32 // 12 dp
-}
-
 // CSS-style numeric font weights used by the default typography. The values
 // follow the OpenType/CSS convention where regular is 400, so a zero weight
 // always means "unset".
@@ -121,8 +97,7 @@ func (t *Typography) Shaper() *text.Shaper {
 }
 
 // DefaultTypography is the canonical MD3 typography: Roboto throughout, the
-// same sizes as DefaultTypeScale, and the official MD3 line heights and
-// tracking. Display, Headline, Title Large and Body roles are regular weight;
+// Material Design 3 sizes, and the official MD3 line heights and tracking. Display, Headline, Title Large and Body roles are regular weight;
 // Title Medium/Small and the Label roles are medium. Code is BodyMedium's
 // metrics on Roboto Mono, Roboto's companion mono face (G-F0); Faces carries
 // the twelve Roboto faces first — the default family for text that names no
@@ -151,27 +126,4 @@ var DefaultTypography = Typography{
 	Code: TextStyle{Typeface: "Roboto Mono", Weight: WeightRegular, Size: 14, LineHeight: 20, Tracking: 0.25},
 
 	Faces: append(roboto.FontFaces(), robotomono.FontFaces()...),
-}
-
-// DefaultTypeScale is the canonical MD3 type scale.
-var DefaultTypeScale = TypeScale{
-	DisplayLarge:  57,
-	DisplayMedium: 45,
-	DisplaySmall:  36,
-
-	HeadlineLarge:  32,
-	HeadlineMedium: 28,
-	HeadlineSmall:  24,
-
-	TitleLarge:  22,
-	TitleMedium: 16,
-	TitleSmall:  14,
-
-	LabelLarge:  14,
-	LabelMedium: 12,
-	LabelSmall:  11,
-
-	BodyLarge:  16,
-	BodyMedium: 14,
-	BodySmall:  12,
 }

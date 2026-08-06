@@ -1,8 +1,8 @@
 // Package tokens holds the typed design values the whole system is styled
 // from: the ColorTokens colour vocabulary — ADR-007's nine-step functional
 // ramps, pinned role bases and thin semantic layer, derived from a brand
-// seed by FromSeed — the Material Design 3 type scale in dp, and the 4-pt
-// spacing, radius, elevation and motion scales. The Tailwind eleven-stop
+// seed by FromSeed — the Material Design 3 type roles, and the 4-pt spacing,
+// radius, elevation and motion scales. The Tailwind eleven-stop
 // scales survive only as optional named palettes, and the MD3-only colour
 // names, deprecated aliases through v0.1.x, are gone as of v0.2.0: each was
 // a fixed ramp step, named on ColorTokens.
@@ -11,8 +11,8 @@
 // the components around it — a pane background, a gap, a corner radius, an
 // animation duration — instead of inventing a number. Components do not import
 // this package for their values: they read the observables on a theme.Theme,
-// and DefaultLight, DefaultDark, DefaultTypeScale, Spacing, Radius, Elevation
-// and Motion are what those observables carry by default.
+// and DefaultLight, DefaultDark, DefaultTypography, Comfortable, Spacing,
+// Radius, Elevation and Motion are what those observables carry by default.
 //
 // Every scale is a plain comparable struct of float32 device-independent
 // pixels, except MotionScale, whose duration stops are time.Duration, and

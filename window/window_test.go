@@ -32,7 +32,6 @@ func collect[T any](obs rx.Observable[T]) ([]T, error) {
 func lightTheme() theme.Theme {
 	return theme.Theme{
 		Color:      rx.Of(tokens.DefaultLight),
-		Type:       rx.Of(tokens.DefaultTypeScale),
 		Typography: rx.Of(tokens.DefaultTypography),
 		Density:    rx.Of(tokens.Comfortable),
 		Motion:     rx.Of(tokens.Motion),
@@ -45,7 +44,6 @@ func lightTheme() theme.Theme {
 func darkTheme() theme.Theme {
 	return theme.Theme{
 		Color:      rx.Of(tokens.DefaultDark),
-		Type:       rx.Of(tokens.DefaultTypeScale),
 		Typography: rx.Of(tokens.DefaultTypography),
 		Density:    rx.Of(tokens.Comfortable),
 		Motion:     rx.Of(tokens.Motion),

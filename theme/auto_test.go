@@ -26,9 +26,6 @@ func TestAutoLightDarkEmitsOneTheme(t *testing.T) {
 	if th.Color == nil {
 		t.Error("emitted Theme.Color is nil")
 	}
-	if th.Type == nil {
-		t.Error("emitted Theme.Type is nil")
-	}
 	if th.Motion == nil {
 		t.Error("emitted Theme.Motion is nil")
 	}

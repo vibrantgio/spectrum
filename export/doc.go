@@ -90,6 +90,7 @@
 // model (surface step and shadow dp per level) and the motion set
 // (durations in ms, easing control points, spring presets).
 // tokens.FromSeed(seed) regenerates the full palette from the seed alone —
-// the round-trip test asserts it. Theme.Type is not consumed: the per-role
-// --font-*-size tokens come from Typography, which carries the same sizes.
+// the round-trip test asserts it. The per-role --font-*-size tokens come from
+// Typography, which is the theme's only type source since v0.3.0 dropped the
+// size-only Theme.Type stream.
 package export

@@ -30,9 +30,6 @@ func TestDefaultThemeFieldsNonNil(t *testing.T) {
 	if th.Color == nil {
 		t.Error("Color is nil")
 	}
-	if th.Type == nil {
-		t.Error("Type is nil")
-	}
 	if th.Density == nil {
 		t.Error("Density is nil")
 	}
@@ -61,20 +58,6 @@ func TestDefaultColorEmission(t *testing.T) {
 	}
 	if got[0] != tokens.DefaultLight {
 		t.Error("emitted ColorTokens does not match tokens.DefaultLight")
-	}
-}
-
-func TestDefaultTypeEmission(t *testing.T) {
-	th := theme.Default()
-	got, err := collect(th.Type)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("expected 1 emission, got %d", len(got))
-	}
-	if got[0] != tokens.DefaultTypeScale {
-		t.Error("emitted TypeScale does not match tokens.DefaultTypeScale")
 	}
 }
 
