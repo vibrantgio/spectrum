@@ -19,19 +19,24 @@ import (
 // surface fill (the primary cue) with its shadow depth in dp (the
 // secondary cue).
 //
-// The LevelN fields keep their original names and dp meaning so existing
-// readers — pulse/depth's dp lookup, spectrum/export's --shadow-* table —
-// compile unchanged; the StepN fields carry the paired surface steps.
-// Prefer the Dp and SurfaceStep accessors over field access in new code.
+// The ladder is four storeys, 0 through 3. MD3 levels 4 and 5 survived
+// through v0.1.x as clamps onto level 3's step, so that call sites written
+// against the MD3 numbering kept compiling; v0.2.0 deleted them, since a
+// desktop surface has no six-storey stack to describe. A call site that
+// named Level4 or Level5 meant "as raised as it gets" and should name
+// Level3.
+//
+// The LevelN fields carry the dp depths — pulse/depth's lookup and
+// spectrum/export's --shadow-* table read them — and the StepN fields the
+// paired surface steps. Prefer the Dp and SurfaceStep accessors over field
+// access in new code.
 type ElevationScale struct {
 	// Shadow depths in device-independent pixels, following Material
-	// Design 3 elevation levels 0–5. The secondary cue.
+	// Design 3 elevation levels 0–3. The secondary cue.
 	Level0 float32 // 0 dp
 	Level1 float32 // 1 dp
 	Level2 float32 // 3 dp
 	Level3 float32 // 6 dp
-	Level4 float32 // 8 dp
-	Level5 float32 // 12 dp
 
 	// Surface-fill steps on the neutral ramp. Step0 is not a ramp step:
 	// its zero value marks the Background pin — a level-0 surface is the
@@ -40,14 +45,6 @@ type ElevationScale struct {
 	Step1 int // 200
 	Step2 int // 300
 	Step3 int // 400
-
-	// Step4 and Step5 clamp to level 3's step, exactly D2.3's step-walk
-	// clamp: desktop has no six-storey stack. The levels survive only so
-	// existing call sites keep compiling.
-	//
-	// Deprecated: levels 4 and 5 are shims; marked for F3.3's shim sweep.
-	Step4 int // 400 — clamped to Step3
-	Step5 int // 400 — clamped to Step3
 }
 
 // Elevation is the default scale instance.
@@ -56,15 +53,11 @@ var Elevation = ElevationScale{
 	Level1: 1,
 	Level2: 3,
 	Level3: 6,
-	Level4: 8,
-	Level5: 12,
 
 	Step0: 0, // Background pin
 	Step1: 200,
 	Step2: 300,
 	Step3: 400,
-	Step4: 400, // clamped to Step3 — F3.3 shim
-	Step5: 400, // clamped to Step3 — F3.3 shim
 }
 
 // ElevationLevel selects an entry on the [ElevationScale] by name.
@@ -77,8 +70,6 @@ const (
 	Level1
 	Level2
 	Level3
-	Level4
-	Level5
 )
 
 // Dp returns level's shadow depth in device-independent pixels. An
@@ -93,10 +84,6 @@ func (e ElevationScale) Dp(level ElevationLevel) float32 {
 		return e.Level2
 	case Level3:
 		return e.Level3
-	case Level4:
-		return e.Level4
-	case Level5:
-		return e.Level5
 	}
 	panic(fmt.Sprintf("tokens: unknown ElevationLevel %d", level))
 }
@@ -115,10 +102,6 @@ func (e ElevationScale) SurfaceStep(level ElevationLevel) int {
 		return e.Step2
 	case Level3:
 		return e.Step3
-	case Level4:
-		return e.Step4
-	case Level5:
-		return e.Step5
 	}
 	panic(fmt.Sprintf("tokens: unknown ElevationLevel %d", level))
 }
@@ -126,8 +109,7 @@ func (e ElevationScale) SurfaceStep(level ElevationLevel) int {
 // SurfaceAt resolves the surface colour of an elevated component: the fill
 // of the given elevation level on t, per the default [Elevation] scale's
 // step mapping. Level 0 is the Background pin over the step-100 ground;
-// levels 1–3 fill with Neutral steps 200, 300 and 400; levels 4 and 5
-// clamp to level 3's step (see [ElevationScale]).
+// levels 1–3 fill with Neutral steps 200, 300 and 400.
 //
 // D2.3's state walks compose on top with the level's step as the ground:
 // hover on a level-1 surface is StateColor(RoleNeutral, 200, StateHover),

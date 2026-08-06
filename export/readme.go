@@ -87,8 +87,8 @@ func readmeMD(s Snapshot) string {
 	b.WriteString("## Elevation: default vs opt-in\n\n" +
 		"Elevation is tonal (E2.1): a raised surface separates from its ground by\n" +
 		"colour, one neutral-ramp step per storey — level 0 is the bg pin over the\n" +
-		"step-100 ground, levels 1–3 fill with neutral 200/300/400, and levels 4–5\n" +
-		"clamp to level 3's step (desktop has no six-storey stack). `--elevation-N`\n" +
+		"step-100 ground and levels 1–3 fill with neutral 200/300/400. The ladder\n" +
+		"stops at 3: desktop has no six-storey stack. `--elevation-N`\n" +
 		"is that surface fill and the **default** cue; because the light and dark\n" +
 		"ramps are paired scales, the same level reads as raised in both modes with\n" +
 		"no mode-specific rule. The dp shadow is the **opt-in** secondary cue,\n" +

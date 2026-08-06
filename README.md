@@ -42,12 +42,12 @@ and since the G-B3 inversion it really is the foundation: the module that owns
 the design values everything above is styled from. spectrum imports
 [mvu](https://github.com/vibrantgio/mvu) and
 [font](https://github.com/vibrantgio/font) — Roboto and Roboto Mono are the
-default `Typography`'s faces — and nothing above it, with one recorded
-exception: the deprecated `spectrum/transition` alias shim imports
-`pulse/transition`, the package's home since the inversion, and F3.3 of the
-[org plan](https://github.com/vibrantgio/.github) (planned, not yet landed)
-deletes the shim. Everything above imports spectrum — prism, pulse, cadence
-and markdown all read `theme` and `tokens` from here, and the
+default `Typography`'s faces — and nothing above it. The deprecated
+`spectrum/transition` alias shim was the last upward edge in the whole stack;
+F3.3 of the [org plan](https://github.com/vibrantgio/.github) deleted it in
+v0.2.0, and the layer check now records no transitional edge at all.
+Everything above imports spectrum — prism, pulse, cadence and markdown all
+read `theme` and `tokens` from here, and the
 [workbench](https://github.com/vibrantgio/workbench) applications bootstrap
 `system` and `window`. The [organization page](https://github.com/vibrantgio)
 has the full tier table.
@@ -71,7 +71,6 @@ github.com/reactivego/rx v0.3.0 and Go 1.25.1.
 | `window` | Pairs an `mvu.Window` with the theme observable that scopes it, and hands that observable to the layer builder. Two windows built with two theme streams render in two different themes in the same process. |
 | `preferences` | Persists the user's explicit appearance choice — a theme name plus accessibility overrides — as JSON under the OS config directory, and reads it back at launch. |
 | `export` | Serialises a `theme.Theme` emission into the project layout claude.ai/design consumes — `theme.json`, `styles.css`, `readme.md` and the foundation pages. `cmd/vg-tokens` is the command-line front door. |
-| `transition` | **Deprecated alias** of [`pulse/transition`](https://github.com/vibrantgio/pulse), where the package moved in the G-B3 inversion. Import the pulse path; F3.3 of the org plan (planned) deletes this shim. |
 
 ## Usage
 
@@ -177,11 +176,11 @@ Honest about what does not work yet:
   would use — an `org.freedesktop.appearance` portal read on Linux,
   `AppsUseLightTheme` plus a registry watch on Windows — and neither is
   written, nor claimed by any phase of the current plan.
-- **The theme snaps; `transition` is not connected to anything.** The package
-  interpolates token sets correctly and is golden-tested, but nothing drives
-  it: `LiveTheme` emits the new palette in one step, and no module or
-  application imports `pulse/transition` except this repository's own
-  deprecated alias. A cross-fade today is the caller's to build out of
+- **The theme snaps; nothing cross-fades it.** `pulse/transition`
+  interpolates token sets correctly, but nothing drives it: `LiveTheme` emits
+  the new palette in one step, and since v0.2.0 deleted this repository's
+  deprecated alias, no module or application imports `pulse/transition` at
+  all. A cross-fade today is the caller's to build out of
   `ColorTokensTween`.
 - **`preferences` persists a choice nothing reads.** No module or application
   imports it, and there is no mapping from the stored theme name to a
@@ -195,14 +194,12 @@ Honest about what does not work yet:
   loops stop when the last subscriber unsubscribes. Sharing is per
   observable value — build the stream once and hand the same value around;
   each separate `LiveTheme` call still costs its own loops.
-- **The newest tag is behind the working tree.** v0.0.15, today's newest tag,
-  predates the Roboto Mono faces and the `Typography.Code` style, so a build
-  resolved from tags renders code in Roboto until the release in progress
-  lands. That release plans v0.1.0 next, and the deprecation sweep after it is
-  a breaking release planned at v0.2.0 — the major that deletes the
-  `spectrum/transition` shim (with prism's `tokens`, `theme` and `a11y`
-  aliases, F3.3) and re-cuts the frozen static `Render` surfaces downstream.
-  Planned numbers, not cut tags.
+- **v0.2.0 is a breaking release.** F3.3's shim sweep deleted the
+  `spectrum/transition` alias, `ColorTokens`' five MD3 alias fields
+  (`OnBackground`, `OnSurface`, `SurfaceVariant`, `OnSurfaceVariant`,
+  `Outline`) and elevation levels 4 and 5. Read the deprecation notes on
+  v0.1.0's fields for what each one resolves to; every deleted colour alias
+  was a documented ramp step and stays reachable as that step.
 
 ## License
 

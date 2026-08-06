@@ -105,8 +105,13 @@ type RampSet struct {
 // of reading a lightened approximation off a ramp step. Dark mode pins a
 // dark-appropriate base rather than reusing the light pin.
 //
-// The MD3-only field names survive as deprecated aliases, resolved from ramp
-// steps at construction, until F3.3 deletes the shims.
+// The MD3-only field names — OnBackground, OnSurface, SurfaceVariant,
+// OnSurfaceVariant and Outline — were deprecated aliases through v0.1.x and
+// are gone as of v0.2.0. Each was a fixed resolution off the neutral ramp,
+// so each is still reachable by asking the ramp directly: OnBackground was
+// Text, OnSurface Ramps.Neutral.Step(900), SurfaceVariant Step(300),
+// OnSurfaceVariant Step(700), Outline Step(500) — or FocusRing(), which is
+// what Outline was actually used for.
 type ColorTokens struct {
 	// Ramps holds the functional ramps, fully populated: nine steps per
 	// role, generated on the shared lightness scale by FromSeed.
@@ -132,37 +137,17 @@ type ColorTokens struct {
 	// except in the high-contrast variant, which resolves it from the
 	// strong-border step 500 (see FromSeedHighContrast).
 	Divider color.NRGBA
-
-	// Deprecated: alias of Text; deleted in F3.3.
-	OnBackground color.NRGBA
-	// Deprecated: alias of Ramps.Neutral.Step(900), the body-text step;
-	// deleted in F3.3.
-	OnSurface color.NRGBA
-	// Deprecated: alias of Ramps.Neutral.Step(300), the hovered/tinted
-	// surface step; deleted in F3.3.
-	SurfaceVariant color.NRGBA
-	// Deprecated: alias of Ramps.Neutral.Step(700), the low-contrast text
-	// step; deleted in F3.3.
-	OnSurfaceVariant color.NRGBA
-	// Deprecated: alias of Ramps.Neutral.Step(500), the strong border step;
-	// deleted in F3.3. For separators use Divider.
-	Outline color.NRGBA
 }
 
 // resolveAliases fills every field defined as a resolution of a ramp step —
-// the semantic Surface and Divider, and the deprecated MD3 aliases — from
-// the ramps and pins already set on t, and returns the completed value.
+// since v0.2.0 that is Surface and Divider, the two semantic fields; the
+// five MD3 aliases it also filled were deleted with the deprecation window.
 // dividerStep is the Neutral step Divider resolves from: 300 in the default
 // derivation, 500 in the high-contrast variant. Constructing tokens through
-// it is what keeps each alias byte-identical to its documented resolution;
+// it is what keeps each field byte-identical to its documented resolution;
 // FromSeed and FromSeedHighContrast build both schemes through it.
 func resolveAliases(t ColorTokens, dividerStep int) ColorTokens {
 	t.Surface = t.Ramps.Neutral.Step(200)
 	t.Divider = t.Ramps.Neutral.Step(dividerStep)
-	t.OnBackground = t.Text
-	t.OnSurface = t.Ramps.Neutral.Step(900)
-	t.SurfaceVariant = t.Ramps.Neutral.Step(300)
-	t.OnSurfaceVariant = t.Ramps.Neutral.Step(700)
-	t.Outline = t.Ramps.Neutral.Step(500)
 	return t
 }

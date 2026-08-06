@@ -137,8 +137,6 @@ var elevationLevels = []struct {
 	{"1", tokens.Level1},
 	{"2", tokens.Level2},
 	{"3", tokens.Level3},
-	{"4", tokens.Level4},
-	{"5", tokens.Level5},
 }
 
 // densityMetrics orders the per-setting density metrics under their CSS

@@ -66,8 +66,6 @@ func TestElevationMonotonic(t *testing.T) {
 		{"Level1", tokens.Elevation.Level1},
 		{"Level2", tokens.Elevation.Level2},
 		{"Level3", tokens.Elevation.Level3},
-		{"Level4", tokens.Elevation.Level4},
-		{"Level5", tokens.Elevation.Level5},
 	}
 	for i := 1; i < len(steps); i++ {
 		if steps[i].v <= steps[i-1].v {

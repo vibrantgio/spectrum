@@ -46,13 +46,13 @@
 //   - --radius-<key> from tokens.RadiusScale in Tailwind naming (none, sm,
 //     base, md, lg, xl, 2xl, 3xl, full), in px; Base is also theme.json's
 //     base radius parameter.
-//   - --elevation-<level> (0–5): the tonal surface fills, the DEFAULT
+//   - --elevation-<level> (0–3): the tonal surface fills, the DEFAULT
 //     elevation cue (E2.1). Each level is emitted as a var() reference —
 //     var(--color-bg) for level 0's bg-pin sentinel, var(--color-neutral-N)
 //     for the ramp steps — so the surfaces flip with .dark through the
 //     colour overrides and the sheet itself states that an elevation level
-//     is a neutral-ramp step. Levels 4 and 5 clamp to level 3's step.
-//   - --shadow-<level> (0–5): CSS box-shadow approximations of the dp
+//     is a neutral-ramp step.
+//   - --shadow-<level> (0–3): CSS box-shadow approximations of the dp
 //     depths, the OPT-IN cue floating transients (menus, dialogs, tooltips)
 //     layer over their tonal fill (E2.2). Each level's dp depth d becomes
 //     "0 <d>px <2d>px 0 rgba(0, 0, 0, 0.2)" — y-offset the depth, blur

@@ -231,14 +231,12 @@ func TestDisabledIsOpacity(t *testing.T) {
 
 // TestFocusIsTheRing verifies focus keeps the surface colour unchanged and
 // the ring colour is Neutral 500 — ADR-007's "strong border, focusable
-// edge", identical to the deprecated Outline alias prism strokes today.
+// edge", which is what the Outline alias resolved to before v0.2.0 deleted
+// it. FocusRing() is the name for it now.
 func TestFocusIsTheRing(t *testing.T) {
 	for _, s := range stateSchemes {
 		if got, want := s.tok.FocusRing(), s.tok.Ramps.Neutral.Step(500); got != want {
 			t.Errorf("%s: FocusRing() = %v, want Neutral step 500 %v", s.name, got, want)
-		}
-		if got, want := s.tok.FocusRing(), s.tok.Outline; got != want {
-			t.Errorf("%s: FocusRing() = %v, want the Outline alias %v", s.name, got, want)
 		}
 		if got, want := s.tok.StateColor(tokens.RoleNeutral, 200, tokens.StateFocus), s.tok.Ramps.Neutral.Step(200); got != want {
 			t.Errorf("%s: focused tinted = %v, want the unchanged ground %v", s.name, got, want)

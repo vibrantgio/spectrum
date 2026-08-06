@@ -560,8 +560,8 @@ func layoutHTML(s Snapshot) string {
 	b.WriteString("<p class=\"intro\">Elevation is tonal (E2.1): a raised surface separates from its ground by colour, " +
 		"one neutral-ramp step per storey, and <code>--elevation-N</code> is that surface fill &mdash; the default cue, " +
 		"resolved as a <code>var()</code> reference into the neutral ramp so it flips with the mode. " +
-		"The cards below sit on the step-100 ground; level 0 is the bg pin, levels 1&ndash;3 are steps 200/300/400, " +
-		"and levels 4/5 clamp to level 3&rsquo;s step &mdash; desktop has no six-storey stack.</p>\n")
+		"The cards below sit on the step-100 ground; level 0 is the bg pin and levels 1&ndash;3 are steps 200/300/400. " +
+		"The ladder stops at 3 &mdash; desktop has no six-storey stack.</p>\n")
 	b.WriteString("<div class=\"elevation-ground\">\n")
 	for _, level := range elevationLevels {
 		step := s.Elevation.SurfaceStep(level.level)
@@ -569,12 +569,8 @@ func layoutHTML(s Snapshot) string {
 		if step != 0 {
 			fill = fmt.Sprintf("neutral-%d", step)
 		}
-		note := ""
-		if level.level >= tokens.Level4 {
-			note = " &middot; clamped"
-		}
 		fmt.Fprintf(&b, "<div>\n<div class=\"surface-card\" style=\"background: var(--elevation-%s)\">%s</div>\n", level.name, level.name)
-		fmt.Fprintf(&b, "<p class=\"annot\"><code>--elevation-%s</code> &middot; %s%s</p>\n</div>\n", level.name, fill, note)
+		fmt.Fprintf(&b, "<p class=\"annot\"><code>--elevation-%s</code> &middot; %s</p>\n</div>\n", level.name, fill)
 	}
 	b.WriteString("</div>\n")
 

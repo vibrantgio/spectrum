@@ -46,7 +46,7 @@ type Parameters struct {
 	// floor.
 	Density DensityParams `json:"density"`
 
-	// Elevation records the tonal model per level 0–5: the neutral-ramp
+	// Elevation records the tonal model per level 0–3: the neutral-ramp
 	// step of the surface fill (the default cue; 0 marks the bg pin, not a
 	// ramp step) and the dp shadow depth (the opt-in cue for floating
 	// transients).
@@ -76,12 +76,13 @@ type DensityMetrics struct {
 	PaddingY      float64 `json:"paddingY"`
 }
 
-// ElevationParams pairs, indexed by level 0–5, the neutral-ramp surface
-// step (0 = the bg pin sentinel; levels 4 and 5 clamp to level 3's step)
-// with the dp shadow depth.
+// ElevationParams pairs, indexed by level 0–3, the neutral-ramp surface
+// step (0 = the bg pin sentinel) with the dp shadow depth. The arrays were
+// six long through v0.1.x, when MD3 levels 4 and 5 survived as clamps onto
+// level 3; F3.3 deleted them and the ladder is four storeys.
 type ElevationParams struct {
-	SurfaceSteps [6]int     `json:"surfaceSteps"`
-	ShadowDp     [6]float64 `json:"shadowDp"`
+	SurfaceSteps [4]int     `json:"surfaceSteps"`
+	ShadowDp     [4]float64 `json:"shadowDp"`
 }
 
 // MotionParams records the motion set.

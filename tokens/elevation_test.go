@@ -6,17 +6,17 @@ import "testing"
 // E2.1 keeps byte-for-byte, and what pulse/depth and spectrum/export read.
 func TestElevationDpPreserved(t *testing.T) {
 	want := map[ElevationLevel]float32{
-		Level0: 0, Level1: 1, Level2: 3, Level3: 6, Level4: 8, Level5: 12,
+		Level0: 0, Level1: 1, Level2: 3, Level3: 6,
 	}
 	for level, dp := range want {
 		if got := Elevation.Dp(level); got != dp {
 			t.Errorf("Elevation.Dp(%d) = %v, want %v", level, got, dp)
 		}
 	}
-	// The legacy field names still carry the same dp values.
+	// The named fields carry the same dp values as the accessor.
 	fields := []float32{
 		Elevation.Level0, Elevation.Level1, Elevation.Level2,
-		Elevation.Level3, Elevation.Level4, Elevation.Level5,
+		Elevation.Level3,
 	}
 	for i, got := range fields {
 		if want := Elevation.Dp(ElevationLevel(i)); got != want {
@@ -38,28 +38,6 @@ func TestElevationSurfaceSteps(t *testing.T) {
 	for level, step := range want {
 		if got := Elevation.SurfaceStep(level); got != step {
 			t.Errorf("Elevation.SurfaceStep(%d) = %d, want %d", level, got, step)
-		}
-	}
-}
-
-// TestElevationClamp asserts levels 4 and 5 clamp to level 3's step,
-// exactly D2.3's step-walk clamp.
-func TestElevationClamp(t *testing.T) {
-	top := Elevation.SurfaceStep(Level3)
-	for _, level := range []ElevationLevel{Level4, Level5} {
-		if got := Elevation.SurfaceStep(level); got != top {
-			t.Errorf("Elevation.SurfaceStep(%d) = %d, want clamp to level 3's %d", level, got, top)
-		}
-	}
-	for _, mode := range []struct {
-		name string
-		tok  ColorTokens
-	}{{"light", DefaultLight}, {"dark", DefaultDark}} {
-		top := mode.tok.SurfaceAt(Level3)
-		for _, level := range []ElevationLevel{Level4, Level5} {
-			if got := mode.tok.SurfaceAt(level); got != top {
-				t.Errorf("%s: SurfaceAt(%d) = %v, want level 3's %v", mode.name, level, got, top)
-			}
 		}
 	}
 }
@@ -103,9 +81,12 @@ func TestSurfaceStateComposition(t *testing.T) {
 }
 
 // TestElevationLevelPanics asserts out-of-vocabulary levels panic,
-// matching Ramp.Step.
+// matching Ramp.Step. 4 and 5 are in the list deliberately: through v0.1.x
+// they were clamps onto level 3, and F3.3's sweep deleted them, so the
+// ladder ends at 3 and asking for a fifth storey is now the error it always
+// described.
 func TestElevationLevelPanics(t *testing.T) {
-	for _, level := range []ElevationLevel{-1, 6} {
+	for _, level := range []ElevationLevel{-1, 4, 5, 6} {
 		func() {
 			defer func() {
 				if recover() == nil {
@@ -121,6 +102,14 @@ func TestElevationLevelPanics(t *testing.T) {
 				}
 			}()
 			Elevation.Dp(level)
+		}()
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("SurfaceAt(%d) did not panic", level)
+				}
+			}()
+			DefaultLight.SurfaceAt(level)
 		}()
 	}
 }

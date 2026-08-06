@@ -15,13 +15,17 @@ type contrastPair struct {
 	fg   color.NRGBA
 }
 
-// tokenPairs returns the foreground/background pairs defined by the "On" naming
-// convention in t. Outline has no On counterpart and is excluded.
+// tokenPairs returns the foreground/background pairs every scheme must
+// carry at WCAG AA. The pinned roles pair with their "On" colours; the
+// surface pairs are named by the ramp steps they resolve from, which is
+// what the five MD3 aliases deleted in v0.2.0 resolved to — the coverage
+// outlived the field names.
 func tokenPairs(t tokens.ColorTokens) []contrastPair {
+	n := t.Ramps.Neutral
 	return []contrastPair{
-		{"Background/OnBackground", t.Background, t.OnBackground},
-		{"Surface/OnSurface", t.Surface, t.OnSurface},
-		{"SurfaceVariant/OnSurfaceVariant", t.SurfaceVariant, t.OnSurfaceVariant},
+		{"Background/Text", t.Background, t.Text},
+		{"Surface/Neutral.Step(900)", t.Surface, n.Step(900)},
+		{"Neutral.Step(300)/Neutral.Step(700)", n.Step(300), n.Step(700)},
 		{"Primary/OnPrimary", t.Primary, t.OnPrimary},
 		{"Secondary/OnSecondary", t.Secondary, t.OnSecondary},
 		{"Tertiary/OnTertiary", t.Tertiary, t.OnTertiary},
@@ -79,10 +83,11 @@ func TestRampStepAddressing(t *testing.T) {
 	}
 }
 
-// TestAliasesResolveFromRamps verifies every deprecated MD3 alias equals its
-// documented ramp-step or pin resolution, and that the semantic layer
-// resolves per ADR-007's surface mapping, in both default schemes.
-func TestAliasesResolveFromRamps(t *testing.T) {
+// TestSemanticLayerResolvesFromRamps verifies the semantic layer resolves
+// per ADR-007's surface mapping in both default schemes. Through v0.1.x
+// this also pinned the five MD3 aliases to their ramp steps; F3.3 deleted
+// them, leaving Surface and Divider as the only resolved fields.
+func TestSemanticLayerResolvesFromRamps(t *testing.T) {
 	for _, s := range []struct {
 		name string
 		tok  tokens.ColorTokens
@@ -98,11 +103,6 @@ func TestAliasesResolveFromRamps(t *testing.T) {
 		}{
 			{"Surface = Neutral.Step(200)", s.tok.Surface, n.Step(200)},
 			{"Divider = Neutral.Step(300)", s.tok.Divider, n.Step(300)},
-			{"OnBackground = Text", s.tok.OnBackground, s.tok.Text},
-			{"OnSurface = Neutral.Step(900)", s.tok.OnSurface, n.Step(900)},
-			{"SurfaceVariant = Neutral.Step(300)", s.tok.SurfaceVariant, n.Step(300)},
-			{"OnSurfaceVariant = Neutral.Step(700)", s.tok.OnSurfaceVariant, n.Step(700)},
-			{"Outline = Neutral.Step(500)", s.tok.Outline, n.Step(500)},
 		}
 		for _, c := range checks {
 			if c.got != c.want {
@@ -368,11 +368,6 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 		n := t.Ramps.Neutral
 		t.Surface = n.Step(200)
 		t.Divider = n.Step(300)
-		t.OnBackground = t.Text
-		t.OnSurface = n.Step(900)
-		t.SurfaceVariant = n.Step(300)
-		t.OnSurfaceVariant = n.Step(700)
-		t.Outline = n.Step(500)
 		return t
 	}
 	return fill(light), fill(dark)
@@ -535,11 +530,6 @@ func hcGolden() (light, dark tokens.ColorTokens) {
 		n := t.Ramps.Neutral
 		t.Surface = n.Step(200)
 		t.Divider = n.Step(500) // the HC variant's strong-border divider
-		t.OnBackground = t.Text
-		t.OnSurface = n.Step(900)
-		t.SurfaceVariant = n.Step(300)
-		t.OnSurfaceVariant = n.Step(700)
-		t.Outline = n.Step(500)
 		return t
 	}
 	return fill(light), fill(dark)
@@ -620,9 +610,6 @@ func diffTokens(t *testing.T, scheme string, got, want tokens.ColorTokens) {
 			"Error": c.Error, "OnError": c.OnError,
 			"Background": c.Background, "Text": c.Text,
 			"Surface": c.Surface, "Divider": c.Divider,
-			"OnBackground": c.OnBackground, "OnSurface": c.OnSurface,
-			"SurfaceVariant": c.SurfaceVariant, "OnSurfaceVariant": c.OnSurfaceVariant,
-			"Outline": c.Outline,
 		}
 	}
 	g, w := fields(got), fields(want)

@@ -93,8 +93,9 @@ func Disabled(c stdcolor.NRGBA) stdcolor.NRGBA {
 }
 
 // FocusRing returns the focus-ring colour: Neutral step 500, ADR-007's
-// "strong border, focusable edge". It is the colour the deprecated Outline
-// alias carries and the one prism's button already strokes its ring with.
+// "strong border, focusable edge". It is the colour the Outline alias
+// carried before v0.2.0 deleted it, and the one prism's button already
+// strokes its ring with.
 func (t ColorTokens) FocusRing() stdcolor.NRGBA {
 	return t.Ramps.Neutral.Step(500)
 }
