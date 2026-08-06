@@ -44,13 +44,17 @@
 // arbitrary colours, carried raw in Appearance.AccentSeed. Both feed the
 // same tokens.FromSeed derivation.
 //
-// The stream is cold, and that costs more than it looks. Every subscription
-// starts its own ticker and polls the Source independently, so one
-// LiveTheme observable shared by n consumers polls n times per interval,
-// not once — and on macOS each poll forks and execs `defaults`. Multicast
-// it (rx Publish plus AutoConnect) if more than one consumer needs the
-// theme, and keep the interval at the intended one second; the OS caches
-// these values and will not report a change much sooner.
+// The streams are shared (FX.5). One [FromSource]/[Live]/[LiveTheme] value
+// runs one poll loop no matter how many subscribers attach: the loop starts
+// with the first subscriber, later subscribers immediately replay the
+// latest value and then track changes, and the loop stops when the
+// subscriber count drops to zero (restarting, latest-first, on the next
+// subscription). A LiveTheme handed to n layers therefore polls each of its
+// two sources — appearance and a11y — once per interval, not n times.
+// Distinct calls still get distinct loops: sharing is per observable value,
+// so build the stream once and hand the same value around. Keep the
+// interval at the intended one second; the OS caches these values and will
+// not report a change much sooner.
 //
 // Errors are invisible by design: a failing Read is folded into the zero
 // Appearance rather than an error emission, so a broken source is
@@ -69,6 +73,7 @@ import (
 
 	"github.com/reactivego/rx"
 	"github.com/vibrantgio/spectrum/a11y"
+	"github.com/vibrantgio/spectrum/internal/poll"
 	"github.com/vibrantgio/spectrum/theme"
 	"github.com/vibrantgio/spectrum/tokens"
 )
@@ -110,22 +115,31 @@ type Source interface {
 	Read() (Appearance, error)
 }
 
-// FromSource returns an Observable that polls src every interval, emitting
-// Appearance only when the value changes. The first emission happens
-// immediately (no initial delay).
+// FromSource returns a shared Observable that polls src every interval,
+// emitting Appearance only when the value changes. The first read is
+// scheduled immediately (no initial delay).
+//
+// The returned observable is multicast (FX.5): all subscribers to this one
+// value share a single poll loop, a subscriber arriving after the first
+// read immediately observes the latest Appearance before tracking changes,
+// and the loop stops when the last subscriber unsubscribes (restarting on
+// the next subscription). Each FromSource call builds its own loop —
+// sharing is per returned value, not per Source.
 //
 // Read errors are folded into the zero-value Appearance — the stream is
 // never an error stream. This keeps the contract simple for consumers
 // that only care about the last good value, and matches a11y.FromSource.
 func FromSource(src Source, interval time.Duration) rx.Observable[Appearance] {
-	return rx.Map(rx.Ticker(0, interval), func(_ time.Time) Appearance {
+	return poll.Shared(func() Appearance {
 		a, _ := src.Read()
 		return a
-	}).DistinctUntilChanged(rx.Equal[Appearance]())
+	}, interval)
 }
 
 // Live returns an Observable backed by the current OS's appearance APIs,
-// polling every interval and emitting whenever a value changes.
+// polling every interval and emitting whenever a value changes. Like
+// [FromSource] it is shared: n subscribers to one Live value cost one poll
+// loop, not n.
 //
 // Recommended interval: 100–250 ms. The G2.2 acceptance budget allows up
 // to one second between an external `defaults write` and the corresponding
@@ -296,6 +310,10 @@ var (
 // [HighContrastVariant] of the resolved pair — the high-contrast variant
 // OF the chosen palette, not a palette override. A preference toggle
 // re-emits the theme just as an appearance change does.
+//
+// The two streams it composes are shared: however many layers subscribe to
+// one LiveTheme value, the appearance source and the a11y source are each
+// polled by exactly one loop.
 func LiveTheme(interval time.Duration, opts ...Option) rx.Observable[theme.Theme] {
 	c := newConfig(opts)
 	prefs := c.a11yStream(interval, a11y.Live(interval))

@@ -16,10 +16,12 @@
 // are config rather than data — and it keeps this module free of a Gio
 // dependency.
 //
-// Two things to know before wiring it up. [Observe] is not a live stream:
-// it reads the file once at subscription time, emits, and completes, so a
-// later [Save] reaches nobody and a UI that must react to its own writes
-// has to publish that change itself. And nothing here turns the stored
+// Two things to know before wiring it up. [Observe] is a live stream since
+// FX.5: it emits the persisted value on subscription and then re-emits on
+// every [Save]/[SaveTo] to the same path from this process — it never
+// completes, so unsubscribe (or Take) when done, and note that writes made
+// by other processes or by hand are NOT observed; there is no file watcher,
+// only the in-process Save notification. And nothing here turns the stored
 // Theme name into a theme value — there is no name-to-theme mapping in this
 // module yet, so an application persists a string and is entirely
 // responsible for interpreting it, including for the A11y overrides, which
@@ -37,6 +39,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/reactivego/rx"
 	"github.com/vibrantgio/spectrum/a11y"
@@ -85,7 +88,10 @@ func LoadFrom(path string) (Preferences, error) {
 	return p, nil
 }
 
-// SaveTo writes preferences to path, creating intermediate directories.
+// SaveTo writes preferences to path, creating intermediate directories,
+// and notifies every live [Observe]/[ObserveFrom] subscription on the same
+// path (in this process) of the new value. Nothing is notified when the
+// write fails.
 func SaveTo(path string, p Preferences) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -94,7 +100,11 @@ func SaveTo(path string, p Preferences) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return err
+	}
+	notify(path, p)
+	return nil
 }
 
 // Load reads preferences from the OS-appropriate config dir for appName.
@@ -115,27 +125,96 @@ func Save(appName string, p Preferences) error {
 	return SaveTo(path, p)
 }
 
-// Observe returns an Observable that emits the persisted preferences once
-// on subscription, then completes. Use this on app launch to seed the UI
-// with the user's last-saved choice.
+// Observe returns an Observable that emits the persisted preferences on
+// subscription and then re-emits on every [Save] to the same app name from
+// this process (FX.5: it used to complete after the one read; now Save and
+// Observe agree). Consecutive duplicate values are collapsed. The stream
+// never completes — unsubscribe (or Take) when done — and it does not
+// watch the file: a write from another process or editor is not observed.
+//
+// Use it to seed the UI with the user's last-saved choice at launch and to
+// keep every consumer of the choice current when the settings screen saves
+// a new one.
 func Observe(appName string) rx.Observable[Preferences] {
 	return rx.Defer(func() rx.Observable[Preferences] {
-		p, err := Load(appName)
+		path, err := Path(appName)
 		if err != nil {
 			return rx.Throw[Preferences](err)
 		}
-		return rx.Of(p)
+		return observePath(path)
 	})
 }
 
 // ObserveFrom is the path-based variant of Observe, useful for tests that
-// need to point at a temporary directory rather than the OS config dir.
+// need to point at a temporary directory rather than the OS config dir. It
+// carries the same contract: initial value, then every SaveTo to the same
+// path, never completing.
 func ObserveFrom(path string) rx.Observable[Preferences] {
 	return rx.Defer(func() rx.Observable[Preferences] {
-		p, err := LoadFrom(path)
-		if err != nil {
-			return rx.Throw[Preferences](err)
-		}
-		return rx.Of(p)
+		return observePath(path)
 	})
+}
+
+// streams is the in-process registry behind the emit-on-write contract:
+// one multicast per (cleaned) preferences path, shared by every Observe
+// subscription and fed by every successful Save.
+var streams struct {
+	sync.Mutex
+	byPath map[string]stream
+}
+
+// stream is one path's live multicast: send feeds it (Save), obs replays
+// the latest value to a new subscriber and then follows (Observe).
+type stream struct {
+	send rx.Observer[Preferences]
+	obs  rx.Observable[Preferences]
+}
+
+// streamFor returns path's multicast, creating it — seeded with the value
+// currently on disk — on first use. The registry key is the cleaned path,
+// so Save and Observe spellings of the same file meet the same stream.
+func streamFor(path string) (stream, error) {
+	key := filepath.Clean(path)
+	streams.Lock()
+	defer streams.Unlock()
+	if s, ok := streams.byPath[key]; ok {
+		return s, nil
+	}
+	p, err := LoadFrom(path)
+	if err != nil {
+		return stream{}, err
+	}
+	// Replay depth 1 (the current value), with buffer headroom so a burst
+	// of saves never blocks the saver on a slow subscriber.
+	send, obs := rx.Subject[Preferences](0, 1, 128)
+	send(p, nil, false)
+	s := stream{send: send, obs: obs}
+	if streams.byPath == nil {
+		streams.byPath = make(map[string]stream)
+	}
+	streams.byPath[key] = s
+	return s, nil
+}
+
+// notify feeds a successfully saved value to path's live stream, if one
+// exists. With no observers there is nothing to do: the next streamFor
+// reads the file fresh.
+func notify(path string, p Preferences) {
+	key := filepath.Clean(path)
+	streams.Lock()
+	s, ok := streams.byPath[key]
+	streams.Unlock()
+	if ok {
+		s.send(p, nil, false)
+	}
+}
+
+// observePath is the shared Observe/ObserveFrom body: the path's multicast
+// with consecutive duplicates collapsed.
+func observePath(path string) rx.Observable[Preferences] {
+	s, err := streamFor(path)
+	if err != nil {
+		return rx.Throw[Preferences](err)
+	}
+	return s.obs.DistinctUntilChanged(rx.Equal[Preferences]())
 }

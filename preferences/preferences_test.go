@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/reactivego/rx"
 	"github.com/vibrantgio/spectrum/a11y"
@@ -64,7 +65,9 @@ func TestPreferencesSurviveRestart(t *testing.T) {
 
 // TestPreferencesSurviveRestartViaObserve covers the same acceptance via the
 // rx.Observable seam used at app launch — that is, the value emitted by
-// Observe on a fresh subscription matches what was previously saved.
+// Observe on a fresh subscription matches what was previously saved. Since
+// FX.5 the stream is live and never completes, so the launch value is the
+// first emission (Take(1)) rather than the whole stream.
 func TestPreferencesSurviveRestartViaObserve(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "preferences.json")
 
@@ -76,7 +79,7 @@ func TestPreferencesSurviveRestartViaObserve(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 
-	got, err := collect(preferences.ObserveFrom(path))
+	got, err := collect(preferences.ObserveFrom(path).Take(1))
 	if err != nil {
 		t.Fatalf("observe: %v", err)
 	}
@@ -85,6 +88,105 @@ func TestPreferencesSurviveRestartViaObserve(t *testing.T) {
 	}
 	if got[0] != saved {
 		t.Errorf("launch emission: got %+v, want %+v", got[0], saved)
+	}
+}
+
+// TestObserveEmitsOnSave is FX.5's Save/Observe agreement: a subscription
+// that is live when SaveTo writes the same path observes the new value —
+// the stream does not complete after the launch read.
+func TestObserveEmitsOnSave(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "preferences.json")
+
+	emissions := make(chan preferences.Preferences, 8)
+	sub := preferences.ObserveFrom(path).Subscribe(rx.GoroutineContext(),
+		func(p preferences.Preferences, _ error, done bool) {
+			if !done {
+				emissions <- p
+			}
+		})
+	defer sub.Unsubscribe()
+
+	await := func(what string) preferences.Preferences {
+		t.Helper()
+		select {
+		case p := <-emissions:
+			return p
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for %s", what)
+			panic("unreachable")
+		}
+	}
+
+	// Launch: no file yet, so the stream seeds with Default.
+	if got := await("the launch emission"); got != preferences.Default {
+		t.Fatalf("launch emission: got %+v, want Default %+v", got, preferences.Default)
+	}
+
+	// The settings screen saves; every live observer hears about it.
+	first := preferences.Preferences{Theme: "dark"}
+	if err := preferences.SaveTo(path, first); err != nil {
+		t.Fatalf("first save: %v", err)
+	}
+	if got := await("the first save"); got != first {
+		t.Fatalf("after first save: got %+v, want %+v", got, first)
+	}
+
+	// And again — the stream stays live past the first write.
+	second := preferences.Preferences{Theme: "auto", A11y: a11y.A11yPrefs{HighContrast: true}}
+	if err := preferences.SaveTo(path, second); err != nil {
+		t.Fatalf("second save: %v", err)
+	}
+	if got := await("the second save"); got != second {
+		t.Fatalf("after second save: got %+v, want %+v", got, second)
+	}
+}
+
+// TestObserveSharesSavesAcrossSubscriptions: two independent Observe
+// subscriptions on one path both see a Save, and a subscription opened
+// after the Save starts from the saved value — the multicast replays the
+// latest, not the launch-time read.
+func TestObserveSharesSavesAcrossSubscriptions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "preferences.json")
+
+	firstEmissions := make(chan preferences.Preferences, 8)
+	first := preferences.ObserveFrom(path).Subscribe(rx.GoroutineContext(),
+		func(p preferences.Preferences, _ error, done bool) {
+			if !done {
+				firstEmissions <- p
+			}
+		})
+	defer first.Unsubscribe()
+
+	await := func(ch chan preferences.Preferences, what string) preferences.Preferences {
+		t.Helper()
+		select {
+		case p := <-ch:
+			return p
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for %s", what)
+			panic("unreachable")
+		}
+	}
+
+	if got := await(firstEmissions, "subscriber 1's launch emission"); got != preferences.Default {
+		t.Fatalf("subscriber 1 launch: got %+v, want Default", got)
+	}
+
+	saved := preferences.Preferences{Theme: "dark"}
+	if err := preferences.SaveTo(path, saved); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if got := await(firstEmissions, "subscriber 1's save emission"); got != saved {
+		t.Fatalf("subscriber 1 after save: got %+v, want %+v", got, saved)
+	}
+
+	// A late subscriber starts from the saved value immediately.
+	got, err := collect(preferences.ObserveFrom(path).Take(1))
+	if err != nil {
+		t.Fatalf("late observe: %v", err)
+	}
+	if len(got) != 1 || got[0] != saved {
+		t.Fatalf("late subscriber: got %+v, want [%+v]", got, saved)
 	}
 }
 

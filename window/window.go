@@ -15,10 +15,12 @@
 // so no application code threads it manually.
 //
 // Isolation is a property of the observables, not of this type. Two Windows
-// given two different observables share nothing; two Windows given the same
-// one are still independent, because an rx observable is cold and each
-// subscription gets its own state — but they will then poll the OS twice
-// per interval rather than once. Multicast the theme if that matters.
+// given two different observables share nothing — including their OS poll
+// loops, since each system.LiveTheme call builds its own. Two Windows given
+// the same one still render independently, and since FX.5 they also share
+// its poll loops: the theme streams are multicast, so however many windows
+// and layers subscribe to one observable, each OS source is polled once per
+// interval.
 //
 // [Window.Render] shadows the embedded [mvu.Window.Render] and takes a
 // different argument: a build function, not layers. The embedded one is

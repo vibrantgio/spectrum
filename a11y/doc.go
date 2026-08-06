@@ -10,7 +10,10 @@
 //
 // It assumes polling. Nothing here is push-based, so Live takes an interval
 // and one second is the intended default — the platform caches these
-// properties and will not report a toggle much faster. macOS and Windows
+// properties and will not report a toggle much faster. The streams are
+// shared (FX.5): one FromSource/Live value runs one poll loop no matter
+// how many subscribers attach, late subscribers replay the latest value,
+// and the loop stops when the subscriber count drops to zero. macOS and Windows
 // report real preferences; Linux returns the zero A11yPrefs, all false,
 // because there is no reliable cross-desktop API without depending on a
 // particular desktop environment. A11yPrefs is deliberately all comparable

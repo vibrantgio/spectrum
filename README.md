@@ -186,14 +186,15 @@ Honest about what does not work yet:
 - **`preferences` persists a choice nothing reads.** No module or application
   imports it, and there is no mapping from the stored theme name to a
   `theme.Theme` — the string round-trips to disk and stops there, as do the
-  stored a11y overrides. `Observe` is also read-once-and-complete, so it does
-  not notify anyone of a later `Save`.
-- **The theme observable is cold, and sharing it costs OS calls.** Every
-  subscription starts its own poller, so handing one `LiveTheme` stream to *n*
-  consumers polls *n* times per interval — on macOS, *n* `defaults` fork+execs
-  per second. Every workbench application does exactly this today with two
-  layers. `rx` Publish/AutoConnect fixes it at the call site; nothing in the
-  current plan changes the default.
+  stored a11y overrides. Since FX.5 `Observe` is at least a live stream —
+  it emits the persisted value and then re-emits on every in-process `Save`
+  to the same path — but writes from other processes are still unobserved.
+- **The theme streams are shared (FX.5).** One `LiveTheme` (or
+  `Live`/`FromSource`) value runs one poll loop per OS source no matter how
+  many layers subscribe: late subscribers replay the latest value, and the
+  loops stop when the last subscriber unsubscribes. Sharing is per
+  observable value — build the stream once and hand the same value around;
+  each separate `LiveTheme` call still costs its own loops.
 - **The newest tag is behind the working tree.** v0.0.15, today's newest tag,
   predates the Roboto Mono faces and the `Typography.Code` style, so a build
   resolved from tags renders code in Roboto until the release in progress
