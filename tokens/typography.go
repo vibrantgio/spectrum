@@ -29,11 +29,29 @@ func FontWeight(weight int) font.Weight {
 // device-independent pixels (dp); Weight is a CSS-style numeric weight where
 // regular is 400 and medium is 500.
 type TextStyle struct {
-	Typeface   string
-	Weight     int
-	Size       float32
+	Typeface string
+	Weight   int
+	Size     float32
+
+	// LineHeight is the height of one line box in dp — the whole box, not the
+	// gap between lines, and not a multiplier. It means what CSS line-height
+	// means: text in this role occupies LineHeight per line whatever its
+	// glyphs measure, with the leading split evenly above and below the ink.
+	// spectrum/export writes exactly this number into
+	// `--font-<role>-line-height`, so the design-surface mirror and the Gio
+	// rendering are stating the same fact.
+	//
+	// Handing it to gioui.org/widget.Label is not enough to get that, which is
+	// the trap this comment exists for. Gio spends the line height on the gap
+	// to the *next* line and gives the first line its own ascent plus descent,
+	// so a MaxLines:1 label — nearly every control in this system — reports
+	// the same size at any line height at all, and wrapped text lands one
+	// deficit short of a whole multiple. Lay text out through
+	// spectrum/typeset, which wraps widget.Label and adds the missing leading;
+	// components in this organization all do.
 	LineHeight float32
-	Tracking   float32
+
+	Tracking float32
 }
 
 // Typography holds one TextStyle per Material Design 3 type role.

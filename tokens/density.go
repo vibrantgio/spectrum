@@ -67,10 +67,46 @@ package tokens
 // target). It is a hit-target floor, not a visual control height, and it stays
 // a hit-target floor: E1.2 keeps the ≥44 dp pointer target independent of
 // density, so Compact shrinks the drawn control but never the clickable area.
+// A control height is a floor, not a height. This is the word the table above
+// was missing, and F4.4 found it by measuring rather than reading: a Compact
+// button draws 29 px against a CompactControlHeight of 28, and it does so with
+// an empty label, so no amount of text is to blame. The arithmetic is simply
+// that a control is as tall as its content box needs, and never shorter than
+// the density says:
+//
+//	height = max(ControlHeight, contentHeight + 2×PaddingY)
+//
+// Where contentHeight is the type role's line height (see [TextStyle.LineHeight]
+// and spectrum/typeset), the two terms are close enough that either can win:
+//
+//	control                role         line height   + 2×PaddingY   ControlHeight   drawn
+//	-------                ----         -----------   ------------   -------------   -----
+//	button, Comfortable    LabelLarge   20            36             36              36
+//	button, Compact        LabelLarge   20            32             28              32
+//	text field, Comfortable BodyLarge   24            40             36              40
+//	text field, Compact    BodyLarge    24            36             28              36
+//
+// Comfortable's 36 dp is exactly LabelLarge's line box plus its own padding,
+// which is not a coincidence — the number was picked against a button — and
+// Compact's 28 dp is the same sum for a 16 dp line height, which is
+// LabelMedium's rather than LabelLarge's. Nothing in this system draws a
+// button in LabelMedium, so Compact's floor is one the content clears. That is
+// allowed; it is what a floor is for. What is not allowed is calling the
+// result a height and then measuring something else.
+//
+// The consequence worth saying out loud: controls in different type roles come
+// out at different heights, and a Comfortable text field (40) is taller than a
+// Comfortable button (36) because BodyLarge is a larger role than LabelLarge.
+// Both are honest readings of the tokens. A design that wants them equal
+// changes the roles or the padding, not the measurement.
 const (
-	// ComfortableControlHeight is the default desktop control height in dp.
+	// ComfortableControlHeight is the default desktop control-height floor in
+	// dp: a Comfortable control is at least this tall, and taller when its
+	// content box needs it.
 	ComfortableControlHeight float32 = 36
-	// CompactControlHeight is the dense-mode control height in dp.
+	// CompactControlHeight is the dense-mode control-height floor in dp. Every
+	// control drawn in a Label or Body role clears it — see the table above —
+	// so it is the floor that is least often the answer.
 	CompactControlHeight float32 = 28
 	// MinHitTarget is the WCAG 2.5.5 pointer-target minimum in dp. It does
 	// not scale with density; prism's current hardcoded 44 dp is this value,
@@ -84,8 +120,11 @@ const (
 // field — see [Density.MinHitTarget] — so no Density value can carry a
 // shrunken hit target.
 type Density struct {
-	// ControlHeight is the visual control height in dp
-	// ([ComfortableControlHeight] or [CompactControlHeight]).
+	// ControlHeight is the minimum visual control height in dp
+	// ([ComfortableControlHeight] or [CompactControlHeight]). It is a floor:
+	// a control draws max(ControlHeight, contentHeight + 2×PaddingY), so a
+	// content box taller than this makes the control taller. See the table
+	// above the constants for which controls clear it and by how much.
 	ControlHeight float32
 	// PaddingX is the horizontal inner padding of a control in dp.
 	PaddingX float32

@@ -50,6 +50,21 @@ application that cannot rely on system fonts — a container, a kiosk — ships 
 own symbol coverage. The face is optional and is not in
 `DefaultTypography.Faces`; see ADR-003.
 
+**Line height means the line box, and `typeset` is how.**
+`tokens.TextStyle.LineHeight` is the CSS thing — the height of one line box,
+leading split evenly around the ink — and `gioui.org/widget.Label` does not
+deliver it. Gio gives the first line its own ascent plus descent and spends the
+line height only on the gap to the next, so a `MaxLines: 1` label measures the
+same at every line height there is. `spectrum/typeset` wraps `widget.Label` and
+adds the missing leading; every component in the org that draws a role's text
+lays it out through `typeset.Layout`. `spectrum/export` writes the same number
+into `--font-<role>-line-height`, so the two surfaces state one fact.
+
+The consequence for sizing: `Density.ControlHeight` is a **floor**, not a
+height. A control draws `max(ControlHeight, lineBox + 2×PaddingY)`, so a
+Comfortable text field in BodyLarge is 40 dp against a 36 dp floor while a
+Comfortable button in LabelLarge is exactly 36.
+
 **Golden images.** None. Spectrum stores no rendered output — it computes
 colour, type and layout values and asserts on numbers. The golden-image
 harness lives in `prism/golden`, and the repos that render use it from
