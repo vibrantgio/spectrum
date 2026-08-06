@@ -19,34 +19,38 @@ component already takes a theme observable as its first argument, so the
 appearance change reaches the buttons with no application code at all — which
 is why all seven [workbench](https://github.com/vibrantgio/workbench)
 applications bootstrap the same two lines and none of them asks the OS about
-appearance a second time. The only light/dark branches left in the seven are
-the two that pick a chroma syntax theme for a markdown code block, and they
-branch on the luminance of the background token rather than on the OS, because
-chroma's themes are the one visual thing the token set does not cover.
+appearance a second time. The same stream carries the OS accent colour — an
+accent change re-emits the theme just like a dark-mode flip — and while the OS
+reports increased contrast, the `Color` observable emits a high-contrast
+variant derived from the resolved palette's own seed. The only light/dark
+branches left in the seven are the two that pick a chroma syntax theme for a
+markdown code block, and they branch on the luminance of the background token
+rather than on the OS, because chroma's themes are the one visual thing the
+token set does not cover.
 
-The module is deliberately small and deliberately Gio-free below the `window`
-package: `system` and `preferences` talk to the OS and the filesystem and
-import no UI toolkit, so the runtime is testable without a display.
+The module is deliberately small and, below the `window` package, nearly
+Gio-free: `system`, `preferences`, `a11y`, `export` and `color` talk to the OS,
+the filesystem and the mathematics and import no UI toolkit, so the runtime is
+testable without a display. The one exception is `tokens`, whose `Typography`
+owns the system's single `*text.Shaper` and therefore imports Gio's text
+machinery.
 
 ## Where it sits
 
-Tier 1 of the stack — `mvu → spectrum → prism → pulse → cadence → markdown`.
-Only the [workbench](https://github.com/vibrantgio/workbench) applications
-import spectrum; nothing inside the design system does. The
-[organization page](https://github.com/vibrantgio) has the full tier table.
-
-Its own imports are the part worth being honest about. spectrum imports
-[mvu](https://github.com/vibrantgio/mvu), which is below it, and then
-`theme`, `tokens` and `a11y` from [prism](https://github.com/vibrantgio/prism)
-and `tween` from [pulse](https://github.com/vibrantgio/pulse), which are both
-above it. The theme runtime therefore depends today on the component library it
-exists to theme, and on the effects layer two tiers up. Phase B of the
-[org plan](https://github.com/vibrantgio/.github) inverts that: `theme` and
-`tokens` move down into this module and `transition` moves up into pulse,
-leaving deprecated aliases behind so no downstream repository has to change a
-line. After that move spectrum is the foundation — the module that owns the
-design values everything above is styled from — rather than a consumer of them,
-and it is the natural home for the generative colour engine Phase D builds.
+Tier 1 of the stack — `mvu → spectrum → prism → pulse → cadence → markdown` —
+and since the G-B3 inversion it really is the foundation: the module that owns
+the design values everything above is styled from. spectrum imports
+[mvu](https://github.com/vibrantgio/mvu) and
+[font](https://github.com/vibrantgio/font) — Roboto and Roboto Mono are the
+default `Typography`'s faces — and nothing above it, with one recorded
+exception: the deprecated `spectrum/transition` alias shim imports
+`pulse/transition`, the package's home since the inversion, and F3.3 of the
+[org plan](https://github.com/vibrantgio/.github) (planned, not yet landed)
+deletes the shim. Everything above imports spectrum — prism, pulse, cadence
+and markdown all read `theme` and `tokens` from here, and the
+[workbench](https://github.com/vibrantgio/workbench) applications bootstrap
+`system` and `window`. The [organization page](https://github.com/vibrantgio)
+has the full tier table.
 
 ```sh
 go get github.com/vibrantgio/spectrum
@@ -59,10 +63,15 @@ github.com/reactivego/rx v0.3.0 and Go 1.25.1.
 
 | Package | |
 | --- | --- |
-| `system` | The OS appearance — dark mode and accent — polled behind a `Source` interface and published as an observable that emits only on change. `Live` gives the raw `Appearance`; `LiveTheme` gives the `theme.Theme` a window wants. Real on macOS; a stub on Linux and Windows. |
+| `tokens` | The typed design values, all of them: the ADR-007 colour ramps and pins, with `FromSeed` deriving both modes from one seed colour; `Typography` — fifteen MD3 text roles plus `Code`, carrying the faces and the one shared shaper; `Density` (Comfortable 36 dp / Compact 28 dp control heights); `MotionScale` (duration stops, easings, spring presets, and `Reduced()` for the OS reduce-motion preference); the elevation ladder (`SurfaceAt`, levels 0–3); and the 4-pt spacing and named radius scales. |
+| `color` | The generative colour engine the palettes are derived with — sRGB ↔ CIELAB and OKLCh conversions and the APCA contrast metric that gates every generated pair. Mathematics only; no colour values live here. |
+| `theme` | `Theme`: one `rx.Observable` per token category, so a consumer subscribes to just the categories it reads. `Default()` and `AutoLightDark()` construct one — note `AutoLightDark()` reads the clock (hours 7–17 light), not the OS; `system.LiveTheme` is the real tracker. |
+| `system` | The OS appearance — dark mode and accent colour — polled behind a `Source` interface and published as an observable that emits only on change. `Live` gives the raw `Appearance`; `LiveTheme` gives the `theme.Theme` a window wants, with `WithSeed`/`WithPalette` options for branding. Dark mode is read on macOS; the accent is read on all three platforms — macOS's accent choice, the Windows DWM registry value, GNOME's named accent and KDE's `kdeglobals` RGB. |
+| `a11y` | OS accessibility preferences — reduce motion, increased contrast, larger text — polled and published as an `rx.Observable[A11yPrefs]` that emits only on change. The composed theme already reflects the first two; macOS and Windows report real preferences, Linux returns all-false. |
 | `window` | Pairs an `mvu.Window` with the theme observable that scopes it, and hands that observable to the layer builder. Two windows built with two theme streams render in two different themes in the same process. |
 | `preferences` | Persists the user's explicit appearance choice — a theme name plus accessibility overrides — as JSON under the OS config directory, and reads it back at launch. |
-| `transition` | Interpolates a whole `tokens.ColorTokens` set between two values, so a light-to-dark flip can cross-fade rather than snap. Moves to `pulse/transition` in Phase B. |
+| `export` | Serialises a `theme.Theme` emission into the project layout claude.ai/design consumes — `theme.json`, `styles.css`, `readme.md` and the foundation pages. `cmd/vg-tokens` is the command-line front door. |
+| `transition` | **Deprecated alias** of [`pulse/transition`](https://github.com/vibrantgio/pulse), where the package moved in the G-B3 inversion. Import the pulse path; F3.3 of the org plan (planned) deletes this shim. |
 
 ## Usage
 
@@ -89,6 +98,26 @@ if err := w.Render(buildLayers(modelObs)).Wait(); err != nil {
 
 One second is the intended poll interval — the OS caches these values and will
 not report a toggle much sooner.
+
+Options on `LiveTheme` (and `FromSourceTheme`) brand the window without giving
+up live OS tracking:
+
+```go
+// one brand colour; everything else derived, dark mode still live
+specsystem.LiveTheme(time.Second, specsystem.WithSeed(brand))
+
+// full control: both schemes supplied, the OS still picks which is live
+specsystem.LiveTheme(time.Second, specsystem.WithPalette(light, dark))
+```
+
+Precedence, highest first: a palette option pins the pair — the application
+chose its brand, the OS accent is ignored. With no palette option the stream
+follows the OS accent colour live, each accent becoming the seed of a derived
+pair; no accent at all falls back to the default palette. Accessibility
+composes on top of whichever palette wins: while the OS reports increased
+contrast, `Color` emits a high-contrast variant derived from the resolved
+palette's own seed, and while it reports reduced motion, `Motion` emits
+`MotionScale.Reduced()` — every duration zero.
 
 `Render` is where the theme becomes the application's. It calls the build
 function with this window's own theme observable and renders the layers that
@@ -141,31 +170,19 @@ replaced by `./...`.
 
 Honest about what does not work yet:
 
-- **You cannot supply your own colours.** `LiveTheme` and `FromSourceTheme`
-  hardcode `tokens.DefaultLight` and `tokens.DefaultDark`; there is no seed, no
-  palette parameter and no injection point anywhere in the stack. Branding an
-  application today means building the `theme.Theme` yourself and giving up OS
-  dark-mode tracking to do it — the two are mutually exclusive. Phase D is the
-  generative colour engine, and D3.1 is the injection point that makes a custom
-  palette and live light/dark switching coexist.
-- **Dark mode is only detected on macOS.** `system_linux.go` and
-  `system_windows.go` return the zero `Appearance` forever, so `Live` there
-  emits light mode once and never again. Both files name the API a real
-  implementation would use — an `org.freedesktop.appearance` D-Bus/gsettings
-  read on Linux, `AppsUseLightTheme` plus `RegNotifyChangeKeyValue` on Windows —
-  and neither is written. Phase D schedules the Windows and Linux *accent*
-  sources; the dark-mode readers those two platforms need are not claimed by
-  any phase of the current plan.
-- **The accent colour is read and thrown away.** macOS `AppleAccentColor`
-  (−1..7) is polled, throttled to one exec per ten seconds, and carried on
-  `Appearance.AccentIndex` — and no consumer maps it to a colour, so the tinting
-  it exists for does not happen. Phase D wires it.
+- **Dark mode is only detected on macOS.** The Linux and Windows sources read
+  the *accent* — GNOME's `gsettings` enum and KDE's `kdeglobals` RGB on Linux,
+  the DWM registry value on Windows — but not dark mode: `Appearance.Dark`
+  stays false there forever. Both files name the API a real implementation
+  would use — an `org.freedesktop.appearance` portal read on Linux,
+  `AppsUseLightTheme` plus a registry watch on Windows — and neither is
+  written, nor claimed by any phase of the current plan.
 - **The theme snaps; `transition` is not connected to anything.** The package
-  interpolates token sets correctly and is golden-tested at frames 0/15/30, but
-  nothing drives it: `LiveTheme` emits the new palette in one step, and no
-  module or application in the organization imports `spectrum/transition`. A
-  cross-fade today is the caller's to build out of `ColorTokensTween`. The
-  package also moves to `pulse/transition` in Phase B, behind an alias.
+  interpolates token sets correctly and is golden-tested, but nothing drives
+  it: `LiveTheme` emits the new palette in one step, and no module or
+  application imports `pulse/transition` except this repository's own
+  deprecated alias. A cross-fade today is the caller's to build out of
+  `ColorTokensTween`.
 - **`preferences` persists a choice nothing reads.** No module or application
   imports it, and there is no mapping from the stored theme name to a
   `theme.Theme` — the string round-trips to disk and stops there, as do the
@@ -177,10 +194,14 @@ Honest about what does not work yet:
   per second. Every workbench application does exactly this today with two
   layers. `rx` Publish/AutoConnect fixes it at the call site; nothing in the
   current plan changes the default.
-- **One recorded upward edge remains.** The G-B3 inversion moved `theme` and
-  `tokens` down into spectrum and `transition` up into pulse, and E3.2 moved
-  `a11y` down the same way; the deprecated `spectrum/transition` alias shim
-  still imports `pulse/transition` until F3.3 removes it.
+- **The newest tag is behind the working tree.** v0.0.15, today's newest tag,
+  predates the Roboto Mono faces and the `Typography.Code` style, so a build
+  resolved from tags renders code in Roboto until the release in progress
+  lands. That release plans v0.1.0 next, and the deprecation sweep after it is
+  a breaking release planned at v0.2.0 — the major that deletes the
+  `spectrum/transition` shim (with prism's `tokens`, `theme` and `a11y`
+  aliases, F3.3) and re-cuts the frozen static `Render` surfaces downstream.
+  Planned numbers, not cut tags.
 
 ## License
 
