@@ -30,6 +30,26 @@ root.
 
     go build ./... && go test ./...
 
+**Two shapers, and the choice is yours to make.** `tokens.Typography` builds
+both, cached in separate fields so neither can hand back the other's:
+
+- `Shaper()` — the system fallback is **on**. This is what applications and
+  library components draw with. The embedded faces answer first; the platform's
+  fonts answer for everything they lack, which is every arrow, box-drawing
+  character and dingbat, because Roboto and Roboto Mono carry none of them.
+  Never disable system fonts here to make an output stable — that is the F4.2
+  defect, and it ships tofu to every user.
+- `DeterministicShaper()` — system fonts **off**, the collection pinned. This
+  is what a golden or pixel test draws with, and the reason it exists: a test
+  that says which faces it wants cannot drift when the default changes.
+
+Widen the collection with `WithFaces`, which copies and clears both caches:
+`tokens.DefaultTypography.WithFaces(notosansmono.FontFace())`. That is how a
+test that legitimately draws an arrow stays deterministic, and how an
+application that cannot rely on system fonts — a container, a kiosk — ships its
+own symbol coverage. The face is optional and is not in
+`DefaultTypography.Faces`; see ADR-003.
+
 **Golden images.** None. Spectrum stores no rendered output — it computes
 colour, type and layout values and asserts on numbers. The golden-image
 harness lives in `prism/golden`, and the repos that render use it from

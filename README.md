@@ -32,8 +32,31 @@ The module is deliberately small and, below the `window` package, nearly
 Gio-free: `system`, `preferences`, `a11y`, `export` and `color` talk to the OS,
 the filesystem and the mathematics and import no UI toolkit, so the runtime is
 testable without a display. The one exception is `tokens`, whose `Typography`
-owns the system's single `*text.Shaper` and therefore imports Gio's text
-machinery.
+owns the system's shapers and therefore imports Gio's text machinery.
+
+`Typography` builds two, and which one you take is a decision, not a detail.
+`Shaper()` is what applications draw with: the embedded faces first, then the
+platform's own fonts for anything they cannot serve, so text resolves — all of
+it, including the arrows, box-drawing characters and symbols Roboto and Roboto
+Mono simply do not carry. `DeterministicShaper()` is what golden tests draw
+with: those faces and nothing else, system fonts off, identical on every
+machine. They are cached apart, so neither can hand back the other's.
+
+Determinism belongs to the test that wants it. Before G-F4 the default was the
+pinned one — golden images could not depend on a machine's fonts, and the price
+was that every application drew a missing-glyph box for `U+2193 ↓`. A test that
+needs a symbol adds the face that carries it rather than reaching for the
+platform's:
+
+```go
+typ := tokens.DefaultTypography.WithFaces(notosansmono.FontFace())
+shaper := typ.DeterministicShaper()
+```
+
+The same one-liner is how an application that cannot rely on system fonts — a
+container, a kiosk — gets symbol coverage; see
+[font](https://github.com/vibrantgio/font)'s `notosansmono`, which is optional
+and deliberately not in `DefaultTypography.Faces`.
 
 ## Where it sits
 
@@ -63,7 +86,7 @@ github.com/reactivego/rx v0.3.0 and Go 1.25.1.
 
 | Package | |
 | --- | --- |
-| `tokens` | The typed design values, all of them: the ADR-007 colour ramps and pins, with `FromSeed` deriving both modes from one seed colour; `Typography` — fifteen MD3 text roles plus `Code`, carrying the faces and the one shared shaper; `Density` (Comfortable 36 dp / Compact 28 dp control heights); `MotionScale` (duration stops, easings, spring presets, and `Reduced()` for the OS reduce-motion preference); the elevation ladder (`SurfaceAt`, levels 0–3); and the 4-pt spacing and named radius scales. |
+| `tokens` | The typed design values, all of them: the ADR-007 colour ramps and pins, with `FromSeed` deriving both modes from one seed colour; `Typography` — fifteen MD3 text roles plus `Code`, carrying the face collection, `WithFaces` to widen it, and two shapers cached apart: `Shaper()` with the system fallback for applications and `DeterministicShaper()` with the collection pinned for golden tests; `Density` (Comfortable 36 dp / Compact 28 dp control heights); `MotionScale` (duration stops, easings, spring presets, and `Reduced()` for the OS reduce-motion preference); the elevation ladder (`SurfaceAt`, levels 0–3); and the 4-pt spacing and named radius scales. |
 | `color` | The generative colour engine the palettes are derived with — sRGB ↔ CIELAB and OKLCh conversions and the APCA contrast metric that gates every generated pair. Mathematics only; no colour values live here. |
 | `theme` | `Theme`: one `rx.Observable` per token category, so a consumer subscribes to just the categories it reads. `Default()` and `AutoLightDark()` construct one — note `AutoLightDark()` reads the clock (hours 7–17 light), not the OS; `system.LiveTheme` is the real tracker. |
 | `system` | The OS appearance — dark mode and accent colour — polled behind a `Source` interface and published as an observable that emits only on change. `Live` gives the raw `Appearance`; `LiveTheme` gives the `theme.Theme` a window wants, with `WithSeed`/`WithPalette` options for branding. Dark mode is read on macOS; the accent is read on all three platforms — macOS's accent choice, the Windows DWM registry value, GNOME's named accent and KDE's `kdeglobals` RGB. |

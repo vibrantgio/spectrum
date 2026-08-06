@@ -64,36 +64,116 @@ type Typography struct {
 	// style, carrying a body role's metrics on the mono face.
 	Code TextStyle
 
-	// Faces is the font collection Shaper builds from. Every Typeface a role
-	// names must appear in it, or text in that role falls back to whatever
-	// face the shaper picks instead. Resolution is by Typeface name, so the
-	// order of entries only matters as fallback for text that names no
+	// Faces is the font collection both shapers build from. Every Typeface a
+	// role names must appear in it, or text in that role falls back to
+	// whatever face the shaper picks instead. Resolution is by Typeface name,
+	// so the order of entries only matters as fallback for text that names no
 	// typeface at all — the first faces are the default family.
+	//
+	// Use WithFaces to add to it; assigning here after either shaper has been
+	// built has no effect on that shaper.
 	Faces []font.FontFace
 
-	// shaper is the cache behind Shaper. Guarded by shaperMu.
-	shaper *text.Shaper
+	// shaper and pinnedShaper are the caches behind Shaper and
+	// DeterministicShaper. They are separate fields because they hold
+	// differently configured shapers, and handing back the wrong one would
+	// make a test's pinned faces silently machine-dependent — or an
+	// application's text silently unresolvable. Both are guarded by shaperMu.
+	shaper       *text.Shaper
+	pinnedShaper *text.Shaper
 }
 
-// shaperMu guards the lazily built shaper cache of every Typography value.
+// shaperMu guards the lazily built shaper caches of every Typography value.
 var shaperMu sync.Mutex
 
-// Shaper returns the text shaper for Faces, building it on the first call and
-// caching it in the receiver. The shaper is built with system fonts excluded,
-// so text resolves only against Faces. It is safe for concurrent use from any
+// Shaper returns the shaper applications should draw with: Faces first, then
+// the platform's own fonts for anything Faces cannot serve. It is built on the
+// first call, cached in the receiver, and safe for concurrent use from any
 // number of goroutines.
 //
-// Copying a Typography value before its first Shaper call is fine — the cache
-// is per-copy, and each copy lazily builds its own shaper. Copies made after
-// the first call share the already built shaper, so change Faces only before
-// shaping starts.
+// The fallback is the point. Faces is Roboto and Roboto Mono, which between
+// them carry no arrow, no box-drawing character and no dingbat, so a shaper
+// confined to them draws a missing-glyph box — tofu — for text a real
+// application genuinely receives. Leaving the system fonts on means text
+// resolves: all of it, including the glyphs no embedded face was ever going to
+// have.
+//
+// What the platform serves therefore varies by machine, which is exactly why
+// tests must not use this one. See DeterministicShaper.
+//
+// Copying a Typography value before its first shaper call is fine — the caches
+// are per-copy, and each copy lazily builds its own. Copies made after the
+// first call share the already built shaper, so change Faces through WithFaces
+// rather than in place once shaping has started.
 func (t *Typography) Shaper() *text.Shaper {
 	shaperMu.Lock()
 	defer shaperMu.Unlock()
 	if t.shaper == nil {
-		t.shaper = text.NewShaper(text.NoSystemFonts(), text.WithCollection(t.Faces))
+		t.shaper = text.NewShaper(text.WithCollection(t.Faces))
 	}
 	return t.shaper
+}
+
+// DeterministicShaper returns the shaper golden tests must draw with: Faces
+// and nothing else, system fonts off, so that the same text shapes to the same
+// pixels on every machine. It is built on the first call, cached in the
+// receiver separately from Shaper's, and safe for concurrent use.
+//
+// A test that pins its faces this way says what it wants, which is stricter
+// than inheriting a default — it cannot drift when the default changes, and it
+// cannot pass here and fail on a machine with a different font set.
+//
+// The pinning is real: a rune outside Faces shapes to the missing-glyph glyph
+// rather than to whatever the machine happens to own. A test that legitimately
+// draws such a rune adds the face that carries it instead of reaching for the
+// platform's:
+//
+//	typ := tokens.DefaultTypography.WithFaces(notosansmono.FontFace())
+//	shaper := typ.DeterministicShaper()
+//
+// That keeps the test deterministic without making it blind. It does not make
+// symbols acceptable in a golden image: the face serving a symbol is the
+// machine-dependent thing goldens exist to avoid, so symbol coverage is
+// asserted at the glyph level — the shaper resolved this rune to a real face —
+// and never as pixels.
+func (t *Typography) DeterministicShaper() *text.Shaper {
+	shaperMu.Lock()
+	defer shaperMu.Unlock()
+	if t.pinnedShaper == nil {
+		t.pinnedShaper = text.NewShaper(text.NoSystemFonts(), text.WithCollection(t.Faces))
+	}
+	return t.pinnedShaper
+}
+
+// WithFaces returns a copy of t whose collection is Faces followed by extra,
+// with both shaper caches cleared so the copy builds its own from the wider
+// collection. The receiver is untouched, and neither slice is aliased.
+//
+// It is the one line an application adds a face with, rather than rebuilding
+// the collection by hand:
+//
+//	typ := tokens.DefaultTypography.WithFaces(notosansmono.FontFace())
+//
+// Two callers want this. An application that cannot rely on system fonts — a
+// container, a kiosk, anything shipping its own world — appends the optional
+// symbol face, since the fallback Shaper counts on is not there to be had. And
+// a test appends whatever face its subject legitimately draws from, then pins
+// it with DeterministicShaper.
+//
+// The extra faces go last, so they serve as fallback without displacing the
+// default family: text naming no typeface still resolves to Faces[0]'s.
+//
+// Call it while wiring, before shaping starts. Like every copy of a Typography
+// it reads the shaper caches, so it is not safe to call concurrently with
+// Shaper or DeterministicShaper on the same value.
+func (t Typography) WithFaces(extra ...font.FontFace) Typography {
+	faces := make([]font.FontFace, 0, len(t.Faces)+len(extra))
+	faces = append(faces, t.Faces...)
+	faces = append(faces, extra...)
+	t.Faces = faces
+	t.shaper = nil
+	t.pinnedShaper = nil
+	return t
 }
 
 // DefaultTypography is the canonical MD3 typography: Roboto throughout, the
@@ -102,6 +182,10 @@ func (t *Typography) Shaper() *text.Shaper {
 // metrics on Roboto Mono, Roboto's companion mono face (G-F0); Faces carries
 // the twelve Roboto faces first — the default family for text that names no
 // typeface — then the four Roboto Mono faces Code resolves against.
+//
+// Sixteen faces, and no symbol face: font/notosansmono is deliberately absent,
+// because Shaper's system fallback already covers what it carries and more.
+// Add it with WithFaces where there is no system to fall back on.
 var DefaultTypography = Typography{
 	DisplayLarge:  TextStyle{Typeface: "Roboto", Weight: WeightRegular, Size: 57, LineHeight: 64, Tracking: -0.25},
 	DisplayMedium: TextStyle{Typeface: "Roboto", Weight: WeightRegular, Size: 45, LineHeight: 52, Tracking: 0},
