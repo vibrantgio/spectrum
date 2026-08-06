@@ -29,6 +29,8 @@ var allRoles = []struct {
 	{"Secondary", tokens.RoleSecondary},
 	{"Tertiary", tokens.RoleTertiary},
 	{"Error", tokens.RoleError},
+	{"Success", tokens.RoleSuccess},
+	{"Warning", tokens.RoleWarning},
 }
 
 // accentRoles are the roles with a pinned solid fill.
@@ -44,6 +46,10 @@ func rampForRole(t tokens.ColorTokens, role tokens.Role) tokens.Ramp {
 		return t.Ramps.Secondary
 	case tokens.RoleTertiary:
 		return t.Ramps.Tertiary
+	case tokens.RoleSuccess:
+		return t.Ramps.Success
+	case tokens.RoleWarning:
+		return t.Ramps.Warning
 	default:
 		return t.Ramps.Error
 	}
@@ -57,6 +63,10 @@ func pinForRole(t tokens.ColorTokens, role tokens.Role) color.NRGBA {
 		return t.Secondary
 	case tokens.RoleTertiary:
 		return t.Tertiary
+	case tokens.RoleSuccess:
+		return t.Success
+	case tokens.RoleWarning:
+		return t.Warning
 	default:
 		return t.Error
 	}

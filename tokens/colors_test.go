@@ -30,6 +30,8 @@ func tokenPairs(t tokens.ColorTokens) []contrastPair {
 		{"Secondary/OnSecondary", t.Secondary, t.OnSecondary},
 		{"Tertiary/OnTertiary", t.Tertiary, t.OnTertiary},
 		{"Error/OnError", t.Error, t.OnError},
+		{"Success/OnSuccess", t.Success, t.OnSuccess},
+		{"Warning/OnWarning", t.Warning, t.OnWarning},
 	}
 }
 
@@ -134,6 +136,8 @@ func TestAllRampStepsPopulated(t *testing.T) {
 			"Secondary": s.tok.Secondary, "OnSecondary": s.tok.OnSecondary,
 			"Tertiary": s.tok.Tertiary, "OnTertiary": s.tok.OnTertiary,
 			"Error": s.tok.Error, "OnError": s.tok.OnError,
+			"Success": s.tok.Success, "OnSuccess": s.tok.OnSuccess,
+			"Warning": s.tok.Warning, "OnWarning": s.tok.OnWarning,
 			"Background": s.tok.Background, "Text": s.tok.Text,
 		} {
 			if c.A != 0xff {
@@ -155,6 +159,8 @@ func namedRamps(t tokens.ColorTokens) []namedRamp {
 		{"Secondary", t.Ramps.Secondary},
 		{"Tertiary", t.Ramps.Tertiary},
 		{"Error", t.Ramps.Error},
+		{"Success", t.Ramps.Success},
+		{"Warning", t.Ramps.Warning},
 	}
 }
 
@@ -283,6 +289,28 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 				hex(0x8b, 0x00, 0x02),
 				hex(0x32, 0x00, 0x00),
 			},
+			Success: tokens.Ramp{
+				hex(0xdf, 0xff, 0xde),
+				hex(0x9b, 0xff, 0x9c),
+				hex(0x88, 0xea, 0x89),
+				hex(0x69, 0xcb, 0x6b),
+				hex(0x4a, 0xac, 0x4e),
+				hex(0x24, 0x8c, 0x2d),
+				hex(0x00, 0x6b, 0x13),
+				hex(0x00, 0x4e, 0x0b),
+				hex(0x00, 0x18, 0x01),
+			},
+			Warning: tokens.Ramp{
+				hex(0xff, 0xf6, 0xe2),
+				hex(0xff, 0xe5, 0xb1),
+				hex(0xff, 0xce, 0x5f),
+				hex(0xe6, 0xad, 0x00),
+				hex(0xc1, 0x91, 0x00),
+				hex(0x9a, 0x73, 0x00),
+				hex(0x76, 0x57, 0x00),
+				hex(0x56, 0x3e, 0x00),
+				hex(0x1c, 0x12, 0x00),
+			},
 		},
 		Primary:     hex(0x67, 0x50, 0xa4), // the seed, byte-exact
 		OnPrimary:   tokens.White,
@@ -292,6 +320,10 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 		OnTertiary:  tokens.White,
 		Error:       hex(0xb4, 0x27, 0x1f),
 		OnError:     tokens.White,
+		Success:     hex(0x00, 0x6e, 0x14),
+		OnSuccess:   tokens.White,
+		Warning:     hex(0x79, 0x59, 0x00),
+		OnWarning:   tokens.White,
 		Background:  hex(0xf7, 0xf6, 0xfd),
 		Text:        hex(0x14, 0x13, 0x18),
 	}
@@ -352,6 +384,28 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 				hex(0xff, 0xd3, 0xcc),
 				hex(0xff, 0xe9, 0xe6),
 			},
+			Success: tokens.Ramp{
+				hex(0x00, 0x1d, 0x02),
+				hex(0x00, 0x29, 0x03),
+				hex(0x00, 0x37, 0x06),
+				hex(0x00, 0x53, 0x0d),
+				hex(0x4f, 0xb2, 0x53),
+				hex(0x69, 0xcb, 0x6b),
+				hex(0x7f, 0xe2, 0x81),
+				hex(0x90, 0xf3, 0x91),
+				hex(0xb9, 0xff, 0xb8),
+			},
+			Warning: tokens.Ramp{
+				hex(0x21, 0x16, 0x00),
+				hex(0x2d, 0x1f, 0x00),
+				hex(0x3d, 0x2b, 0x00),
+				hex(0x5b, 0x43, 0x00),
+				hex(0xc8, 0x96, 0x00),
+				hex(0xe6, 0xad, 0x00),
+				hex(0xff, 0xc3, 0x22),
+				hex(0xff, 0xd8, 0x86),
+				hex(0xff, 0xec, 0xc5),
+			},
 		},
 		Primary:     hex(0xd0, 0xc4, 0xff), // L* 82, the step-700 depth (D2.4)
 		OnPrimary:   hex(0x22, 0x00, 0x4e),
@@ -361,6 +415,10 @@ func defaultGolden() (light, dark tokens.ColorTokens) {
 		OnTertiary:  hex(0x2f, 0x09, 0x1c),
 		Error:       hex(0xff, 0xbc, 0xb1),
 		OnError:     hex(0x3a, 0x00, 0x00),
+		Success:     hex(0x7f, 0xe2, 0x81),
+		OnSuccess:   hex(0x00, 0x1d, 0x02),
+		Warning:     hex(0xff, 0xc3, 0x22),
+		OnWarning:   hex(0x21, 0x16, 0x00),
 		Background:  hex(0x18, 0x17, 0x1c),
 		Text:        hex(0xee, 0xed, 0xf4),
 	}
@@ -445,6 +503,28 @@ func hcGolden() (light, dark tokens.ColorTokens) {
 				hex(0x22, 0x00, 0x00),
 				black,
 			},
+			Success: tokens.Ramp{
+				hex(0xdf, 0xff, 0xde),
+				hex(0x9b, 0xff, 0x9c),
+				hex(0x88, 0xea, 0x89),
+				hex(0x69, 0xcb, 0x6b),
+				hex(0x4a, 0xac, 0x4e),
+				hex(0x24, 0x8c, 0x2d),
+				hex(0x00, 0x18, 0x01),
+				hex(0x00, 0x0f, 0x00),
+				black,
+			},
+			Warning: tokens.Ramp{
+				hex(0xff, 0xf6, 0xe2),
+				hex(0xff, 0xe5, 0xb1),
+				hex(0xff, 0xce, 0x5f),
+				hex(0xe6, 0xad, 0x00),
+				hex(0xc1, 0x91, 0x00),
+				hex(0x9a, 0x73, 0x00),
+				hex(0x1c, 0x12, 0x00),
+				hex(0x11, 0x0a, 0x00),
+				black,
+			},
 		},
 		Primary:     hex(0x67, 0x50, 0xa4), // still the seed, byte-exact
 		OnPrimary:   tokens.White,
@@ -454,6 +534,10 @@ func hcGolden() (light, dark tokens.ColorTokens) {
 		OnTertiary:  tokens.White,
 		Error:       hex(0xb4, 0x27, 0x1f),
 		OnError:     tokens.White,
+		Success:     hex(0x00, 0x6e, 0x14),
+		OnSuccess:   tokens.White,
+		Warning:     hex(0x79, 0x59, 0x00),
+		OnWarning:   tokens.White,
 		Background:  hex(0xf7, 0xf6, 0xfd),
 		Text:        black,
 	}
@@ -514,6 +598,28 @@ func hcGolden() (light, dark tokens.ColorTokens) {
 				hex(0xff, 0xf4, 0xf2),
 				white,
 			},
+			Success: tokens.Ramp{
+				hex(0x00, 0x1d, 0x02),
+				hex(0x00, 0x29, 0x03),
+				hex(0x00, 0x37, 0x06),
+				hex(0x00, 0x53, 0x0d),
+				hex(0x4f, 0xb2, 0x53),
+				hex(0x69, 0xcb, 0x6b),
+				hex(0xb9, 0xff, 0xb8),
+				hex(0xdf, 0xff, 0xde),
+				white,
+			},
+			Warning: tokens.Ramp{
+				hex(0x21, 0x16, 0x00),
+				hex(0x2d, 0x1f, 0x00),
+				hex(0x3d, 0x2b, 0x00),
+				hex(0x5b, 0x43, 0x00),
+				hex(0xc8, 0x96, 0x00),
+				hex(0xe6, 0xad, 0x00),
+				hex(0xff, 0xec, 0xc5),
+				hex(0xff, 0xf6, 0xe2),
+				white,
+			},
 		},
 		Primary:     hex(0xd0, 0xc4, 0xff), // L* 82, unchanged from the default
 		OnPrimary:   black,
@@ -523,6 +629,10 @@ func hcGolden() (light, dark tokens.ColorTokens) {
 		OnTertiary:  black,
 		Error:       hex(0xff, 0xbc, 0xb1),
 		OnError:     black,
+		Success:     hex(0x7f, 0xe2, 0x81),
+		OnSuccess:   black,
+		Warning:     hex(0xff, 0xc3, 0x22),
+		OnWarning:   black,
 		Background:  hex(0x18, 0x17, 0x1c),
 		Text:        white,
 	}
@@ -536,7 +646,7 @@ func hcGolden() (light, dark tokens.ColorTokens) {
 }
 
 // TestFromSeedHighContrastGoldenPalette pins the high-contrast variant
-// derived from the default seed — both schemes, all five ramps, every pin
+// derived from the default seed — both schemes, all seven ramps, every pin
 // and semantic colour — to the recording in hcGolden.
 func TestFromSeedHighContrastGoldenPalette(t *testing.T) {
 	wantLight, wantDark := hcGolden()
@@ -575,6 +685,8 @@ func TestFromSeedHighContrastSharesGrounds(t *testing.T) {
 			{hcLight.Secondary, light.Secondary}, {hcLight.OnSecondary, light.OnSecondary},
 			{hcLight.Tertiary, light.Tertiary}, {hcLight.OnTertiary, light.OnTertiary},
 			{hcLight.Error, light.Error}, {hcLight.OnError, light.OnError},
+			{hcLight.Success, light.Success}, {hcLight.OnSuccess, light.OnSuccess},
+			{hcLight.Warning, light.Warning}, {hcLight.OnWarning, light.OnWarning},
 		}
 		for i, p := range lightPins {
 			if p[0] != p[1] {
@@ -608,6 +720,8 @@ func diffTokens(t *testing.T, scheme string, got, want tokens.ColorTokens) {
 			"Secondary": c.Secondary, "OnSecondary": c.OnSecondary,
 			"Tertiary": c.Tertiary, "OnTertiary": c.OnTertiary,
 			"Error": c.Error, "OnError": c.OnError,
+			"Success": c.Success, "OnSuccess": c.OnSuccess,
+			"Warning": c.Warning, "OnWarning": c.OnWarning,
 			"Background": c.Background, "Text": c.Text,
 			"Surface": c.Surface, "Divider": c.Divider,
 		}
@@ -621,7 +735,7 @@ func diffTokens(t *testing.T, scheme string, got, want tokens.ColorTokens) {
 }
 
 // TestFromSeedGoldenPalette pins the entire palette derived from the
-// default seed — both schemes, all five ramps, every pin and semantic
+// default seed — both schemes, all seven ramps, every pin and semantic
 // colour — to the recording in defaultGolden, and verifies DefaultLight
 // and DefaultDark are exactly that derivation.
 func TestFromSeedGoldenPalette(t *testing.T) {

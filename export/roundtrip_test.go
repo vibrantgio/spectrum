@@ -392,6 +392,8 @@ func TestThemeJSONReproduces(t *testing.T) {
 			{"--color-secondary", mode.pins.Secondary},
 			{"--color-tertiary", mode.pins.Tertiary},
 			{"--color-error", mode.pins.Error},
+			{"--color-success", mode.pins.Success},
+			{"--color-warning", mode.pins.Warning},
 		}
 		for _, c := range checks {
 			if c.got != mode.vars[c.name] {

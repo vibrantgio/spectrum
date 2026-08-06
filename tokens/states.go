@@ -65,9 +65,9 @@ const (
 	StateDragged
 )
 
-// Role selects one of the five colour-role ramps of a RampSet, and for the
-// four accent roles also the matching pinned base on ColorTokens. Neutral
-// has a ramp but no pinned solid fill.
+// Role selects one of the colour-role ramps of a RampSet, and for the
+// accent and status roles also the matching pinned base on ColorTokens.
+// Neutral has a ramp but no pinned solid fill.
 type Role int
 
 const (
@@ -76,6 +76,8 @@ const (
 	RoleSecondary
 	RoleTertiary
 	RoleError
+	RoleSuccess
+	RoleWarning
 )
 
 // DisabledOpacity is the fraction of full alpha a disabled element keeps —
@@ -165,6 +167,10 @@ func (t ColorTokens) rampFor(role Role) Ramp {
 		return t.Ramps.Tertiary
 	case RoleError:
 		return t.Ramps.Error
+	case RoleSuccess:
+		return t.Ramps.Success
+	case RoleWarning:
+		return t.Ramps.Warning
 	}
 	panic(fmt.Sprintf("tokens: unknown Role %d", role))
 }
@@ -179,6 +185,10 @@ func (t ColorTokens) pinFor(role Role) stdcolor.NRGBA {
 		return t.Tertiary
 	case RoleError:
 		return t.Error
+	case RoleSuccess:
+		return t.Success
+	case RoleWarning:
+		return t.Warning
 	}
 	panic(fmt.Sprintf("tokens: Role %d has no pinned solid fill", role))
 }

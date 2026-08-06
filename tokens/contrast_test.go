@@ -21,7 +21,7 @@ import (
 // tinted fills 100–300 come from the ramp being read. Since every ramp
 // shares one lightness scale, the neutral-grounds reading differs only by
 // hue-induced luminance wiggle; the same-role reading covers neutral anyway
-// (neutral is one of the five gated ramps).
+// (neutral is one of the seven gated ramps).
 //
 // WCAG 2 ratios for the same pairs are logged alongside — conformance
 // claims cite them per ADR-007 — but they do not gate: only APCA failures
@@ -66,6 +66,8 @@ func TestAPCAContrastGate(t *testing.T) {
 				{"Secondary", s.tok.Secondary, s.tok.OnSecondary},
 				{"Tertiary", s.tok.Tertiary, s.tok.OnTertiary},
 				{"Error", s.tok.Error, s.tok.OnError},
+				{"Success", s.tok.Success, s.tok.OnSuccess},
+				{"Warning", s.tok.Warning, s.tok.OnWarning},
 			} {
 				lc := color.APCA(p.on, p.base)
 				wcag := color.ContrastRatio(p.on, p.base)
@@ -99,7 +101,9 @@ func wcagVerdict(ratio float64) string {
 // APCA failures fail this test.
 //
 // Measured margins at recording time: light min 700 Lc 90.7, 900 Lc 92.3,
-// pins Lc 85.7; dark min 700 Lc 93.1, 900 Lc 104.4, pins Lc 76.3.
+// pins Lc 85.7; dark min 700 Lc 93.1, 900 Lc 104.4, pins Lc 76.3. F4.6's
+// Success and Warning ramps join the gate without moving any of those
+// minima — each clears its floor above the worst case already recorded.
 func TestAPCAContrastGateHighContrast(t *testing.T) {
 	hcLight, hcDark := tokens.FromSeedHighContrast(tokens.DefaultSeed)
 	for _, s := range []struct {
@@ -134,6 +138,8 @@ func TestAPCAContrastGateHighContrast(t *testing.T) {
 				{"Secondary", s.tok.Secondary, s.tok.OnSecondary},
 				{"Tertiary", s.tok.Tertiary, s.tok.OnTertiary},
 				{"Error", s.tok.Error, s.tok.OnError},
+				{"Success", s.tok.Success, s.tok.OnSuccess},
+				{"Warning", s.tok.Warning, s.tok.OnWarning},
 			} {
 				lc := color.APCA(p.on, p.base)
 				wcag := color.ContrastRatio(p.on, p.base)

@@ -10,7 +10,7 @@
 //     measured 900 was L* 18, but D2.4's APCA gate deepened it: APCA's soft
 //     black clamp caps even pure black near Lc 92 over the L* 92 step-200
 //     ground, so Lc ≥ 90 needs the 900 stop at L* 6 (min Lc 90.7 across the
-//     five default ramps; L* 18 measured Lc 85–87). The dark scale is the
+//     seven default ramps; L* 18 measured Lc 85–87). The dark scale is the
 //     paired scale measured from the same source's dark column (ADR-007's
 //     evidence table): 8, 13, 19, 30, 65, —, 82, —, 94; the 600 and 800
 //     stops the table has no surface for are interpolated to 74 and 88 (the
@@ -25,11 +25,29 @@
 //     unit ≈ 0.00272 OKLCh chroma. Neutral = seed hue at chroma 0.010
 //     (MD3's neutral 4; ADR-007's measured reference columns sit at
 //     0.009–0.011). Secondary = seed hue at chroma 0.044 (MD3's 16).
-//     Tertiary = seed hue +60° at chroma 0.065 (MD3's 24). Error is a fixed
-//     red: hue 28.7° at chroma 0.178, the OKLCh coordinates of MD3's
-//     canonical error base #B3261E (its "hue 25, chroma 84") measured with
-//     this module's own converters. Primary uses the seed's measured hue
-//     and chroma unchanged.
+//     Tertiary = seed hue +60° at chroma 0.065 (MD3's 24). Primary uses the
+//     seed's measured hue and chroma unchanged.
+//
+//   - The three status roles are hue-fixed, not seed-derived. A semantic
+//     colour must not rotate with the brand: a purple "success" says
+//     nothing. Each takes the OKLCh hue and chroma of a canonical Material
+//     colour, measured with this module's own converters and recorded here
+//     (measurements from F4.6; the error pair predates it, from D2.2):
+//
+//       error    hue  28.7°, chroma 0.178  — MD3's canonical error base
+//                                            #B3261E (its "hue 25,
+//                                            chroma 84"), L* 39.7
+//       success  hue 144.2°, chroma 0.162  — Material Green 500 #4CAF50,
+//                                            L* 63.98
+//       warning  hue  84.9°, chroma 0.172  — Material Amber 500 #FFC107,
+//                                            L* 81.52
+//
+//     The palette anchor of each family is its 500 shade, so that is what
+//     is measured; only the hue and chroma are taken, since the depths come
+//     from the shared lightness scale like every other role. The three land
+//     56–59° apart on the OKLCh hue circle — far enough that warning is not
+//     read as error at a glance, which is the whole point of a status
+//     colour.
 //
 //   - Pins. The light primary base is the seed byte-for-byte (ADR-007:
 //     "the seed sits deep, so bases are pins" — reading it off the ramp
@@ -59,7 +77,7 @@
 //   - The 700 text step deepens to the default scale's 900 depth in both
 //     modes — light 700 L* 39 → 6, dark 700 L* 82 → 94 — so 700 text meets
 //     the same Lc ≥ 90 bar the default asks only of 900 (light min Lc 90.7,
-//     dark 93.0 across the five ramps; APCA's soft black clamp caps lighter
+//     dark 93.0 across the seven ramps; APCA's soft black clamp caps lighter
 //     choices below 90, the same wall D2.4 hit). The 800 and 900 stops
 //     slide outward — light 3 and 0, dark 97 and 100 — keeping the ladder
 //     strictly monotonic and the 900 gate clear with margin (light Lc 92.3,
@@ -109,6 +127,10 @@ const (
 	tertiaryHueShift = 60    // MD3: tertiary is the seed hue rotated +60°
 	errorHue         = 28.7  // OKLCh hue of MD3's error base #B3261E
 	errorChroma      = 0.178 // OKLCh chroma of #B3261E
+	successHue       = 144.2 // OKLCh hue of Material Green 500 #4CAF50
+	successChroma    = 0.162 // OKLCh chroma of #4CAF50
+	warningHue       = 84.9  // OKLCh hue of Material Amber 500 #FFC107
+	warningChroma    = 0.172 // OKLCh chroma of #FFC107
 	lightPinTone     = 40    // MD3's accent-base tone; the default seed's own depth
 	darkPinTone      = 82    // the dark scale's step-700 L*; D2.4 raised it from the
 	// spike's 65 — no on-colour reaches Lc 60 over an L* 65 mid-tone
@@ -187,8 +209,10 @@ func fromSeed(seed stdcolor.NRGBA, d derivation) (light, dark ColorTokens) {
 		{seedHue, secondaryChroma},
 		{seedHue + tertiaryHueShift, tertiaryChroma},
 		{errorHue, errorChroma},
+		{successHue, successChroma},
+		{warningHue, warningChroma},
 	}
-	var lr, dr [5]Ramp
+	var lr, dr [7]Ramp
 	for i, role := range roles {
 		lr[i] = rampOf(d.lightTones, role.hue, role.chroma)
 		dr[i] = rampOf(d.darkTones, role.hue, role.chroma)
@@ -204,7 +228,10 @@ func fromSeed(seed stdcolor.NRGBA, d derivation) (light, dark ColorTokens) {
 	}
 
 	light = resolveAliases(ColorTokens{
-		Ramps:       RampSet{Neutral: lr[0], Primary: lr[1], Secondary: lr[2], Tertiary: lr[3], Error: lr[4]},
+		Ramps: RampSet{
+			Neutral: lr[0], Primary: lr[1], Secondary: lr[2], Tertiary: lr[3],
+			Error: lr[4], Success: lr[5], Warning: lr[6],
+		},
 		Primary:     seed, // pinned to the seed exactly, never read off the ramp
 		OnPrimary:   White,
 		Secondary:   lightPin(2),
@@ -213,11 +240,18 @@ func fromSeed(seed stdcolor.NRGBA, d derivation) (light, dark ColorTokens) {
 		OnTertiary:  White,
 		Error:       lightPin(4),
 		OnError:     White,
+		Success:     lightPin(5),
+		OnSuccess:   White,
+		Warning:     lightPin(6),
+		OnWarning:   White,
 		Background:  lr[0].Step(100),
 		Text:        lr[0].Step(900),
 	}, d.dividerStep)
 	dark = resolveAliases(ColorTokens{
-		Ramps:       RampSet{Neutral: dr[0], Primary: dr[1], Secondary: dr[2], Tertiary: dr[3], Error: dr[4]},
+		Ramps: RampSet{
+			Neutral: dr[0], Primary: dr[1], Secondary: dr[2], Tertiary: dr[3],
+			Error: dr[4], Success: dr[5], Warning: dr[6],
+		},
 		Primary:     darkPin(1),
 		OnPrimary:   darkOn(1),
 		Secondary:   darkPin(2),
@@ -226,6 +260,10 @@ func fromSeed(seed stdcolor.NRGBA, d derivation) (light, dark ColorTokens) {
 		OnTertiary:  darkOn(3),
 		Error:       darkPin(4),
 		OnError:     darkOn(4),
+		Success:     darkPin(5),
+		OnSuccess:   darkOn(5),
+		Warning:     darkPin(6),
+		OnWarning:   darkOn(6),
 		Background:  dr[0].Step(100),
 		Text:        dr[0].Step(900),
 	}, d.dividerStep)

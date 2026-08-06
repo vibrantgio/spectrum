@@ -242,7 +242,7 @@ type pinChip struct {
 	darkBg       stdcolor.NRGBA
 }
 
-// colorHTML renders foundations/color.html: five roles, each with its full
+// colorHTML renders foundations/color.html: seven roles, each with its full
 // nine-step ramp, its pinned base(s), ADR-007's step purposes, and the
 // measured APCA Lc (WCAG 2 ratio alongside) of each text pair in both modes.
 func colorHTML(s Snapshot) string {
@@ -304,6 +304,28 @@ func colorHTML(s Snapshot) string {
 			lightPinGround: s.Light.Error,
 			darkPinText:    s.Dark.OnError,
 			darkPinGround:  s.Dark.Error,
+		},
+		{
+			name: "success",
+			pins: []pinChip{
+				{"--color-success", "--color-on-success", "success (pinned)", s.Light.Success, s.Dark.Success},
+			},
+			pairLabel:      "on-success on success",
+			lightPinText:   s.Light.OnSuccess,
+			lightPinGround: s.Light.Success,
+			darkPinText:    s.Dark.OnSuccess,
+			darkPinGround:  s.Dark.Success,
+		},
+		{
+			name: "warning",
+			pins: []pinChip{
+				{"--color-warning", "--color-on-warning", "warning (pinned)", s.Light.Warning, s.Dark.Warning},
+			},
+			pairLabel:      "on-warning on warning",
+			lightPinText:   s.Light.OnWarning,
+			lightPinGround: s.Light.Warning,
+			darkPinText:    s.Dark.OnWarning,
+			darkPinGround:  s.Dark.Warning,
 		},
 	}
 

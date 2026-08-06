@@ -83,16 +83,23 @@ func (r Ramp) Step(n int) color.NRGBA {
 	return r[n/100-1]
 }
 
-// RampSet holds the five colour-role ramps ADR-007 defines. Neutral carries
+// RampSet holds the colour-role ramps ADR-007 defines. Neutral carries
 // every surface, border and text shade; the accent ramps carry each role's
 // tints and text shades, while the role's base colour is pinned separately
 // on ColorTokens (see ColorTokens.Primary).
+//
+// Error, Success and Warning are the semantic status roles. Unlike Primary,
+// Secondary and Tertiary they do not rotate with the seed — a purple
+// "success" would be useless — so each is derived at a fixed hue and
+// chroma; see the seed.go file header for the three measurements.
 type RampSet struct {
 	Neutral   Ramp
 	Primary   Ramp
 	Secondary Ramp
 	Tertiary  Ramp
 	Error     Ramp
+	Success   Ramp
+	Warning   Ramp
 }
 
 // ColorTokens holds the colour vocabulary consumed by every Prism component:
@@ -126,6 +133,10 @@ type ColorTokens struct {
 	OnTertiary  color.NRGBA // text/icon over Tertiary
 	Error       color.NRGBA // pinned error base
 	OnError     color.NRGBA // text/icon over Error
+	Success     color.NRGBA // pinned success base
+	OnSuccess   color.NRGBA // text/icon over Success
+	Warning     color.NRGBA // pinned warning base
+	OnWarning   color.NRGBA // text/icon over Warning
 
 	// The thin semantic layer (ADR-007's surface mapping). Background and
 	// Text are pins — the "bg" and "text" bases E0.1 emits — while Surface

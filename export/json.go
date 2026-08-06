@@ -158,6 +158,8 @@ type Pins struct {
 	Secondary string `json:"secondary"`
 	Tertiary  string `json:"tertiary"`
 	Error     string `json:"error"`
+	Success   string `json:"success"`
+	Warning   string `json:"warning"`
 }
 
 // Fonts names the typefaces. Mono is the code style's face — the sheet's
@@ -183,6 +185,8 @@ func pinsOf(t tokens.ColorTokens) Pins {
 		Secondary: hexRGB(t.Secondary),
 		Tertiary:  hexRGB(t.Tertiary),
 		Error:     hexRGB(t.Error),
+		Success:   hexRGB(t.Success),
+		Warning:   hexRGB(t.Warning),
 	}
 }
 

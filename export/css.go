@@ -32,7 +32,7 @@ func px(v float32) string {
 	return fnum(v) + "px"
 }
 
-// rampRoles orders ADR-007's five colour roles under their CSS names.
+// rampRoles orders ADR-007's colour roles under their CSS names.
 var rampRoles = []struct {
 	name string
 	ramp func(tokens.RampSet) tokens.Ramp
@@ -42,6 +42,8 @@ var rampRoles = []struct {
 	{"secondary", func(r tokens.RampSet) tokens.Ramp { return r.Secondary }},
 	{"tertiary", func(r tokens.RampSet) tokens.Ramp { return r.Tertiary }},
 	{"error", func(r tokens.RampSet) tokens.Ramp { return r.Error }},
+	{"success", func(r tokens.RampSet) tokens.Ramp { return r.Success }},
+	{"warning", func(r tokens.RampSet) tokens.Ramp { return r.Warning }},
 }
 
 // pinRoles orders the pinned bases and the semantic layer under their CSS
@@ -62,6 +64,10 @@ var pinRoles = []struct {
 	{"on-tertiary", func(t tokens.ColorTokens) stdcolor.NRGBA { return t.OnTertiary }},
 	{"error", func(t tokens.ColorTokens) stdcolor.NRGBA { return t.Error }},
 	{"on-error", func(t tokens.ColorTokens) stdcolor.NRGBA { return t.OnError }},
+	{"success", func(t tokens.ColorTokens) stdcolor.NRGBA { return t.Success }},
+	{"on-success", func(t tokens.ColorTokens) stdcolor.NRGBA { return t.OnSuccess }},
+	{"warning", func(t tokens.ColorTokens) stdcolor.NRGBA { return t.Warning }},
+	{"on-warning", func(t tokens.ColorTokens) stdcolor.NRGBA { return t.OnWarning }},
 }
 
 // typeRoles orders the fifteen MD3 type roles under their CSS names, plus
