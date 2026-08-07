@@ -49,6 +49,11 @@ type TextStyle struct {
 	// deficit short of a whole multiple. Lay text out through
 	// spectrum/typeset, which wraps widget.Label and adds the missing leading;
 	// components in this organization all do.
+	//
+	// Zero means "no line height" and leaves the shaper's own default in
+	// place. So does a negative one: widget.Label would install it and
+	// gioui.org/text would then baseline each line above the one before it,
+	// which is worse than any default, so spectrum/typeset drops it.
 	LineHeight float32
 
 	Tracking float32

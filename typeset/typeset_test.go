@@ -11,6 +11,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
+	"github.com/vibrantgio/font/notosansmono"
 	"github.com/vibrantgio/spectrum/tokens"
 	"github.com/vibrantgio/spectrum/typeset"
 )
@@ -20,10 +21,34 @@ import (
 // that happens to sit inside x-height.
 const specimen = "Il1 Wm gj 018"
 
+// arrowed is the specimen plus two runes no Roboto face carries, so the line
+// it shapes to holds a run from a second face. That is the case the natural
+// line has to be measured from the text for: Gio takes a line's ascent as the
+// maximum over its runs, so this line is taller than the primary face alone.
+const arrowed = "Il1 Wm gj 018 →←"
+
 // pinned is the shaper every test here draws with: the default faces, system
 // fonts off, so a machine with a different font set cannot change a
 // measurement.
 func pinned() *text.Shaper { return tokens.DefaultTypography.DeterministicShaper() }
+
+// fallbackShaper is pinned's counterpart for the mixed-face measurements: the
+// default faces plus the optional symbol face, still with system fonts off, so
+// an arrow resolves to a real face on every machine rather than to whatever
+// the platform happens to own. It stands in for the fallback that applications
+// get from the system.
+//
+// It returns the style to draw with as well, because that style must ask for a
+// weight the fallback face has. Gio matches a fallback by weight and Noto Sans
+// Mono ships Regular alone, so LabelLarge's Medium does not reach it: at
+// Medium the arrow shapes to Roboto's missing-glyph box and the line stays the
+// primary face's height, which would make these tests measure nothing.
+func fallbackShaper() (*text.Shaper, tokens.TextStyle) {
+	typ := tokens.DefaultTypography.WithFaces(notosansmono.FontFace())
+	style := typ.LabelLarge
+	style.Weight = 0
+	return typ.DeterministicShaper(), style
+}
 
 // gtx returns a layout context at 1 px per dp and per sp, so every measured px
 // below is also the dp figure a role names.
@@ -204,5 +229,105 @@ func TestBaselineMovesWithTheLowerHalf(t *testing.T) {
 	if want := plain.Baseline + deficit - deficit/2; dims.Baseline != want {
 		t.Errorf("baseline = %d, want %d (plain %d + %d below the ink)",
 			dims.Baseline, want, plain.Baseline, deficit-deficit/2)
+	}
+}
+
+// TestMixedFaceLineLandsOnItsLineHeight is the assertion the empty-string probe
+// could not make. The probe measured the primary face's ascent and descent, but
+// Gio takes a line's ascent as the maximum over that line's runs, so a line
+// carrying a fallback run is taller than the probe and the deficit was computed
+// against the wrong baseline. Measured before this was fixed: 23 px on a role
+// that declares 20 — and spectrum/export writes `line-height: 20` for the same
+// role, so the two surfaces disagreed for exactly the characters the fallback
+// exists to serve.
+func TestMixedFaceLineLandsOnItsLineHeight(t *testing.T) {
+	var ops op.Ops
+	g := gtx(&ops, 1<<20)
+	sh, style := fallbackShaper()
+
+	// The premise first: without this, the test could pass because the arrow
+	// never reached the second face and every line was the primary's height.
+	f := typeset.Font(style, font.Normal)
+	bare := widget.Label{MaxLines: 1}
+	latin := bare.Layout(g, sh, f, unit.Sp(style.Size), specimen, op.CallOp{}).Size.Y
+	mixed := bare.Layout(g, sh, f, unit.Sp(style.Size), arrowed, op.CallOp{}).Size.Y
+	if mixed <= latin {
+		t.Fatalf("uncorrected: Latin %d px, mixed %d px — the arrows did not pull in a taller face, so this test measures nothing", latin, mixed)
+	}
+
+	for _, txt := range []string{specimen, arrowed} {
+		if got, want := measure(t, g, sh, style, txt), int(style.LineHeight); got != want {
+			t.Errorf("%q: box %d px, want the role's %d px line height", txt, got, want)
+		}
+	}
+}
+
+// TestMixedFaceWrappedLinesGetWholeLineBoxes is TestWrappedLinesGetWholeLineBoxes
+// under the fallback, where the deficit measured off a probe went wrong by the
+// difference between two faces: the wrapped mixed-face run came back 41 px on a
+// 20 px line height, which is not a multiple of anything.
+func TestMixedFaceWrappedLinesGetWholeLineBoxes(t *testing.T) {
+	var ops op.Ops
+	g := gtx(&ops, 60) // narrow enough to wrap
+	sh, style := fallbackShaper()
+	lh := int(style.LineHeight)
+
+	for _, maxLines := range []int{2, 3, 4} {
+		lbl := typeset.Label(style, maxLines)
+		dims := typeset.Layout(g, sh, lbl, typeset.Font(style, font.Normal),
+			unit.Sp(style.Size), arrowed, op.CallOp{})
+		if dims.Size.Y < 2*lh {
+			t.Fatalf("MaxLines %d: %d px — the text did not wrap, so this proves nothing", maxLines, dims.Size.Y)
+		}
+		if dims.Size.Y%lh != 0 {
+			t.Errorf("MaxLines %d: %d px is not a whole multiple of the %d px line height", maxLines, dims.Size.Y, lh)
+		}
+	}
+}
+
+// TestResultFitsTheCallersConstraints pins the resolution of the constraint
+// double-count. widget.Label constrains its own result, so adding the deficit
+// on top of that reported more than the caller's slot whenever Min.Y was set —
+// which is every Flexed child of a vertical layout.Flex. The org's components
+// dodged it by zeroing Constraints.Min first, which was convention and not
+// contract. Layout now constrains the corrected size instead, so the contract
+// is the one every other Gio widget keeps.
+func TestResultFitsTheCallersConstraints(t *testing.T) {
+	var ops op.Ops
+	sh := pinned()
+	style := styleAt(20)
+
+	for _, slot := range []int{12, 20, 40} {
+		g := gtx(&ops, 1<<20)
+		g.Constraints.Min.Y, g.Constraints.Max.Y = slot, slot
+		dims := typeset.Layout(g, sh, typeset.Label(style, 1), typeset.Font(style, font.Normal),
+			unit.Sp(style.Size), specimen, op.CallOp{})
+		if dims.Size.Y != slot {
+			t.Errorf("Min.Y == Max.Y == %d: reported %d px", slot, dims.Size.Y)
+		}
+	}
+}
+
+// TestNegativeLineHeightNeverReachesTheShaper covers the mismatch between the
+// two guards. widget.Label installs any LineHeight that is != 0 where Layout
+// bails at <= 0, so a negative one used to pass straight through with
+// LineHeightScale 1 — and gioui.org/text then baselines each line above the one
+// before it, stacking a wrapped label's lines on top of each other and
+// reporting the height of one.
+func TestNegativeLineHeightNeverReachesTheShaper(t *testing.T) {
+	if lbl := typeset.Label(styleAt(-20), 1); lbl.LineHeight != 0 || lbl.LineHeightScale != 0 {
+		t.Errorf("Label at line height -20 installed %v scale %v, want both unset", lbl.LineHeight, lbl.LineHeightScale)
+	}
+
+	var ops op.Ops
+	g := gtx(&ops, 60) // narrow enough to wrap
+	sh := pinned()
+	style := styleAt(0)
+	f := typeset.Font(style, font.Normal)
+
+	one := widget.Label{MaxLines: 1}.Layout(g, sh, f, unit.Sp(style.Size), specimen, op.CallOp{}).Size.Y
+	hand := widget.Label{LineHeight: -20, LineHeightScale: 1}
+	if got := typeset.Layout(g, sh, hand, f, unit.Sp(style.Size), specimen, op.CallOp{}).Size.Y; got <= one {
+		t.Errorf("a hand-built negative line height laid %d px out where one line alone is %d: the wrapped lines collapsed onto each other", got, one)
 	}
 }
