@@ -88,26 +88,62 @@ type Typography struct {
 	// so the order of entries only matters as fallback for text that names no
 	// typeface at all — the first faces are the default family.
 	//
-	// Use WithFaces to add to it; assigning here after either shaper has been
-	// built has no effect on that shaper.
+	// Use WithFaces to add to it; assigning here has no effect on a shaper
+	// that is already built — and because the cache is shared between a value
+	// and its copies, that includes one built through a different copy.
 	Faces []font.FontFace
 
-	// shaper and pinnedShaper are the caches behind Shaper and
-	// DeterministicShaper. They are separate fields because they hold
-	// differently configured shapers, and handing back the wrong one would
-	// make a test's pinned faces silently machine-dependent — or an
-	// application's text silently unresolvable. Both are guarded by shaperMu.
+	// shapers is the cache behind Shaper and DeterministicShaper. It is a
+	// pointer on purpose, and that is the whole of F5.1.
+	//
+	// A Typography travels by value: every component in this organization
+	// pulls one out of an rx tuple — `typ := n.Second` — before asking it for
+	// a shaper. A cache held in the struct itself is therefore written into a
+	// local that dies at the end of the map function, and the next emission
+	// rebuilds it. Behind a pointer the cache belongs to the value's *source*,
+	// so rx.Of(DefaultTypography) builds one shaper for the process rather
+	// than one per emission, per component, per theme change.
+	//
+	// WithFaces allocates a fresh cache, because a different collection is a
+	// different shaper. A Typography built as a bare composite literal rather
+	// than derived from DefaultTypography has no cache until its first shaper
+	// call allocates one, which for a value that is copied before that call
+	// degrades to the per-copy behaviour this field exists to end. Derive from
+	// DefaultTypography or WithFaces and the question does not arise.
+	shapers *shaperCache
+}
+
+// shaperCache is the lazily filled pair of shapers that a Typography shares
+// with every copy of itself. The two configurations are separate fields
+// because handing back the wrong one would make a test's pinned faces silently
+// machine-dependent — or an application's text silently unresolvable.
+type shaperCache struct {
 	shaper       *text.Shaper
 	pinnedShaper *text.Shaper
 }
 
-// shaperMu guards the lazily built shaper caches of every Typography value.
+// shaperMu guards the shaper caches of every Typography value, including the
+// lazy allocation of the cache itself.
+//
+// It protects the cache fields, not the shapers. A *text.Shaper is not safe to
+// use from two goroutines and this mutex does not make it so; see Shaper for
+// why that is not a problem in a Gio application.
 var shaperMu sync.Mutex
+
+// cache returns t's shaper cache, allocating an empty one if t was built as a
+// bare composite literal instead of being derived from DefaultTypography.
+// Callers must hold shaperMu.
+func (t *Typography) cache() *shaperCache {
+	if t.shapers == nil {
+		t.shapers = &shaperCache{}
+	}
+	return t.shapers
+}
 
 // Shaper returns the shaper applications should draw with: Faces first, then
 // the platform's own fonts for anything Faces cannot serve. It is built on the
-// first call, cached in the receiver, and safe for concurrent use from any
-// number of goroutines.
+// first call and cached, and every copy of the value it was built through —
+// including every copy an rx emission makes — hands back that same shaper.
 //
 // The fallback is the point. Faces is Roboto and Roboto Mono, which between
 // them carry no arrow, no box-drawing character and no dingbat, so a shaper
@@ -119,23 +155,43 @@ var shaperMu sync.Mutex
 // What the platform serves therefore varies by machine, which is exactly why
 // tests must not use this one. See DeterministicShaper.
 //
-// Copying a Typography value before its first shaper call is fine — the caches
-// are per-copy, and each copy lazily builds its own. Copies made after the
-// first call share the already built shaper, so change Faces through WithFaces
-// rather than in place once shaping has started.
+// # One shaper, one goroutine
+//
+// The shaper handed back is shared, and it is not safe for concurrent use.
+// gioui.org/text says so itself: the same Shaper must not be used from
+// different goroutines, and it panics on its internal map when it is. An
+// earlier version of this comment promised the exact opposite — "safe for
+// concurrent use from any number of goroutines" — and the per-copy cache that
+// promise was written to justify is what stopped the cache from ever being
+// read back.
+//
+// Sharing one shaper is nevertheless right, because Gio renders on a single
+// goroutine. The rx observables in this organization paint nothing: they
+// assemble a forest of widgets that the frame event handler then lays out, on
+// that one goroutine. A shaper therefore does not need to be per-value, per
+// component or per emission — one shaper per face collection is what the
+// toolkit expects, and the only arrangement that does not re-parse sixteen
+// embedded faces and re-enumerate the platform's fonts on every theme change.
+//
+// The rule that follows is short: call Shaper from the goroutine that runs the
+// event loop and do not hand the result to another one. Copying the Typography
+// does not buy you a second shaper. Use WithFaces, which allocates a fresh
+// cache along with its wider collection.
 func (t *Typography) Shaper() *text.Shaper {
 	shaperMu.Lock()
 	defer shaperMu.Unlock()
-	if t.shaper == nil {
-		t.shaper = text.NewShaper(text.WithCollection(t.Faces))
+	c := t.cache()
+	if c.shaper == nil {
+		c.shaper = text.NewShaper(text.WithCollection(t.Faces))
 	}
-	return t.shaper
+	return c.shaper
 }
 
 // DeterministicShaper returns the shaper golden tests must draw with: Faces
 // and nothing else, system fonts off, so that the same text shapes to the same
-// pixels on every machine. It is built on the first call, cached in the
-// receiver separately from Shaper's, and safe for concurrent use.
+// pixels on every machine. It is built on the first call and cached separately
+// from Shaper's, in the same cache every copy of the value shares. The
+// single-goroutine rule under Shaper applies here too, and for the same reason.
 //
 // A test that pins its faces this way says what it wants, which is stricter
 // than inheriting a default — it cannot drift when the default changes, and it
@@ -157,15 +213,17 @@ func (t *Typography) Shaper() *text.Shaper {
 func (t *Typography) DeterministicShaper() *text.Shaper {
 	shaperMu.Lock()
 	defer shaperMu.Unlock()
-	if t.pinnedShaper == nil {
-		t.pinnedShaper = text.NewShaper(text.NoSystemFonts(), text.WithCollection(t.Faces))
+	c := t.cache()
+	if c.pinnedShaper == nil {
+		c.pinnedShaper = text.NewShaper(text.NoSystemFonts(), text.WithCollection(t.Faces))
 	}
-	return t.pinnedShaper
+	return c.pinnedShaper
 }
 
 // WithFaces returns a copy of t whose collection is Faces followed by extra,
-// with both shaper caches cleared so the copy builds its own from the wider
-// collection. The receiver is untouched, and neither slice is aliased.
+// with a fresh, empty shaper cache of its own, so the copy builds both shapers
+// from the wider collection. The receiver is untouched, and neither slice is
+// aliased.
 //
 // It is the one line an application adds a face with, rather than rebuilding
 // the collection by hand:
@@ -181,16 +239,19 @@ func (t *Typography) DeterministicShaper() *text.Shaper {
 // The extra faces go last, so they serve as fallback without displacing the
 // default family: text naming no typeface still resolves to Faces[0]'s.
 //
-// Call it while wiring, before shaping starts. Like every copy of a Typography
-// it reads the shaper caches, so it is not safe to call concurrently with
-// Shaper or DeterministicShaper on the same value.
+// WithFaces is also the only supported way to get a second shaper out of this
+// type. Copying a Typography no longer detaches its cache — that is the point
+// of F5.1 — so a copy that must shape from a different collection has to say
+// so here.
+//
+// Call it while wiring, before shaping starts, on the goroutine that will do
+// the shaping.
 func (t Typography) WithFaces(extra ...font.FontFace) Typography {
 	faces := make([]font.FontFace, 0, len(t.Faces)+len(extra))
 	faces = append(faces, t.Faces...)
 	faces = append(faces, extra...)
 	t.Faces = faces
-	t.shaper = nil
-	t.pinnedShaper = nil
+	t.shapers = &shaperCache{}
 	return t
 }
 
@@ -228,4 +289,12 @@ var DefaultTypography = Typography{
 	Code: TextStyle{Typeface: "Roboto Mono", Weight: WeightRegular, Size: 14, LineHeight: 20, Tracking: 0.25},
 
 	Faces: append(roboto.FontFaces(), robotomono.FontFaces()...),
+
+	// Allocated here, not lazily. Every consumer in the organization reaches
+	// this value through rx.Of(DefaultTypography), which snapshots it into the
+	// observable before any shaper call: a cache allocated on first use would
+	// be allocated into the snapshot's dying copy, and the process would be
+	// back to one shaper per emission. Giving the package value its cache up
+	// front is what makes every copy of it share one.
+	shapers: &shaperCache{},
 }

@@ -281,6 +281,110 @@ func TestShapersAreCachedApart(t *testing.T) {
 	}
 }
 
+// TestShaperCacheSurvivesCopying is the F5.1 regression. It reproduces what an
+// rx emission does to a Typography and asserts the cache survives it.
+//
+// Every component in this organization reaches the theme's shaper the same
+// way: the theme emits a tokens.Typography, the component's map function pulls
+// it out of the tuple into a local — `typ := n.Second` — and calls
+// typ.Shaper(). Both accessors take pointer receivers and cache into the
+// receiver, so before F5.1 that cache was written into a local that died at
+// the end of the map function and was rebuilt, from sixteen embedded faces
+// plus the platform's font list, on the very next emission. The pre-F5.1 tests
+// missed it because they all held their Typography in a variable and called
+// twice, which is the one shape production never has.
+//
+// The copies below are made from one source, exactly as rx.Of(…) hands the
+// same value to every subscriber, and every one of them must name the same
+// shaper.
+func TestShaperCacheSurvivesCopying(t *testing.T) {
+	source := tokens.DefaultTypography.WithFaces()
+
+	// Copies taken before the first shaper call: nothing is built yet, so
+	// this is the emission ordering that used to produce N shapers for N
+	// subscribers.
+	copies := make([]tokens.Typography, 4)
+	for i := range copies {
+		copies[i] = source
+	}
+
+	want := copies[0].Shaper()
+	if want == nil {
+		t.Fatal("Shaper() returned nil")
+	}
+	for i, c := range copies[1:] {
+		if got := c.Shaper(); got != want {
+			t.Errorf("copy %d built its own fallback shaper; the cache did not survive the copy", i+1)
+		}
+	}
+
+	// The source itself must see the shaper its copy built — the cache belongs
+	// to the value they all came from, not to whichever copy got there first.
+	if got := source.Shaper(); got != want {
+		t.Error("the source did not see the shaper its copy built")
+	}
+
+	// A copy taken *after* the shaper exists must see it too.
+	if late := source; late.Shaper() != want {
+		t.Error("a copy taken after the first call built a second fallback shaper")
+	}
+
+	// The same for the pinned configuration, built here in the other order:
+	// a copy first, then the source, so neither ordering is special.
+	wantPinned := copies[1].DeterministicShaper()
+	if wantPinned == nil {
+		t.Fatal("DeterministicShaper() returned nil")
+	}
+	for i, c := range copies {
+		if got := c.DeterministicShaper(); got != wantPinned {
+			t.Errorf("copy %d built its own pinned shaper; the cache did not survive the copy", i)
+		}
+	}
+	if got := source.DeterministicShaper(); got != wantPinned {
+		t.Error("the source did not see the pinned shaper its copy built")
+	}
+
+	// F4.2's separation must survive the shared cache: one holder, still two
+	// distinct shapers. Collapsing them would make every golden in the
+	// organization inherit the system fallback it exists to avoid.
+	if want == wantPinned {
+		t.Fatal("Shaper() and DeterministicShaper() collapsed to one shaper across copies")
+	}
+	if gid, _ := resolvedGlyph(t, wantPinned, '↓'); gid != 0 {
+		t.Error("the shared pinned shaper resolved U+2193; it is not pinned to the collection")
+	}
+
+	// And WithFaces still detaches: a different collection is a different
+	// shaper, so its copy must share nothing with the value it came from.
+	wide := source.WithFaces(notosansmono.FontFace())
+	if wide.Shaper() == want || wide.DeterministicShaper() == wantPinned {
+		t.Error("WithFaces handed back the receiver's shapers instead of allocating a fresh cache")
+	}
+	if source.Shaper() != want || source.DeterministicShaper() != wantPinned {
+		t.Error("WithFaces disturbed the receiver's shared cache")
+	}
+}
+
+// TestDefaultTypographySharesOneShaper asserts the property the whole fix
+// exists for, at the value the whole organization actually uses: every
+// component reading rx.Of(tokens.DefaultTypography) gets one process-wide
+// shaper per configuration, not one per emission.
+func TestDefaultTypographySharesOneShaper(t *testing.T) {
+	// Two independent snapshots of the package value, as two components'
+	// theme wiring would take them.
+	first := tokens.DefaultTypography
+	second := tokens.DefaultTypography
+	if first.Shaper() != second.Shaper() {
+		t.Error("two snapshots of DefaultTypography built two fallback shapers")
+	}
+	if first.DeterministicShaper() != second.DeterministicShaper() {
+		t.Error("two snapshots of DefaultTypography built two pinned shapers")
+	}
+	if tokens.DefaultTypography.Shaper() != first.Shaper() {
+		t.Error("the package value does not share the shaper its snapshots use")
+	}
+}
+
 // TestDeterministicShaperPinsTheCollection asserts the pinned shaper really is
 // pinned: every symbol probe resolves to .notdef, because no face in the
 // default collection carries it and system fonts are off. If this test starts
