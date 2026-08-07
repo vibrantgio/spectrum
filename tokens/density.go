@@ -87,12 +87,43 @@ package tokens
 //	text field, Compact    BodyLarge    24            36             28              36
 //
 // Comfortable's 36 dp is exactly LabelLarge's line box plus its own padding,
-// which is not a coincidence — the number was picked against a button — and
-// Compact's 28 dp is the same sum for a 16 dp line height, which is
-// LabelMedium's rather than LabelLarge's. Nothing in this system draws a
-// button in LabelMedium, so Compact's floor is one the content clears. That is
-// allowed; it is what a floor is for. What is not allowed is calling the
-// result a height and then measuring something else.
+// which is not a coincidence — the number was picked against a button.
+//
+// # Compact's 28 dp is historical; the rule that made 36 would have said 32
+//
+// Compact's 28 dp is that same sum for a 16 dp line height — LabelMedium's,
+// not LabelLarge's, and nothing in this system draws a button in LabelMedium.
+// Read Comfortable's derivation as a rule ("the floor is the control's own line
+// box plus its own padding") and apply it to Compact and the answer is not 28:
+//
+//	LabelLarge 20 + 2×6 = 32
+//
+// 32 is also shadcn/ui's sm button (h-8), so the evidence table above would
+// have carried it without complaint. That is the figure the arithmetic wants,
+// and it is written here so nobody has to re-derive it a third time. F4.4c
+// found the discrepancy and documented it rather than changing the number;
+// F5.6 re-opened the question and reached the same answer on purpose, for
+// three reasons in descending weight:
+//
+//   - 28 dp does not rest on the LabelMedium arithmetic and never did. It came
+//     from measurement — macOS's large control height, squarely between
+//     shadcn's sm (32) and xs (24) — and the LabelMedium coincidence was
+//     noticed afterwards, by F4.4. Correcting a derivation that was not the
+//     source of the number corrects nothing.
+//   - ControlHeight is a floor for controls but a *pin* for stacked rows.
+//     prism/list rows, cadence's table rows and header cells and sidebar items
+//     are ControlHeight tall exactly (see the row table below). Moving 28 to 32
+//     is therefore not an arithmetic tidy-up; it is a visual change to every
+//     dense list and table in the system.
+//   - It would nearly erase Compact. A 32 dp Compact row against a 36 dp
+//     Comfortable one is an 11% difference where today it is 22% — in exactly
+//     the dense tables and lists Compact exists for.
+//
+// So the two densities are derived by *different rules*: Comfortable from a
+// type role's line box, Compact from measured native control heights. The
+// asymmetry is intended, and this paragraph exists to say so rather than let
+// the next reader find 28 ≠ 32 and assume it is a typo. What is not allowed is
+// calling the result a height and then measuring something else.
 //
 // The consequence worth saying out loud: controls in different type roles come
 // out at different heights, and a Comfortable text field (40) is taller than a
@@ -154,6 +185,12 @@ const (
 	// CompactControlHeight is the dense-mode control-height floor in dp. Every
 	// control drawn in a Label or Body role clears it — see the table above —
 	// so it is the floor that is least often the answer.
+	//
+	// The number is historical: it was measured off macOS's large control, and
+	// the line-box rule that produced ComfortableControlHeight would have given
+	// 32 here, not 28. Both facts are load-bearing and both are argued out
+	// under "Compact's 28 dp is historical" above. Read that before changing
+	// it — stacked rows are pinned to this value, not floored by it.
 	CompactControlHeight float32 = 28
 	// MinHitTarget is the pointer-target floor in dp for a *standalone*
 	// control — one with space around it: button, checkbox, radio, text
